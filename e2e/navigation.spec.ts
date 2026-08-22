@@ -5,6 +5,11 @@ import { freshAccount, signUp } from './helpers';
  * One broad sweep across every page reachable from the nav — the goal is
  * catching a page that 500s or renders a blank error boundary, not deep
  * feature coverage (that belongs in the more targeted specs).
+ *
+ * Deliberately one signup for the whole sweep, not one per page: `signup` is
+ * rate-limited to 5/hour per IP (a real, intentional anti-abuse limit — see
+ * `src/server/actions/auth.ts`), and this file's own dev-machine traffic
+ * would exhaust it in a couple of runs otherwise.
  */
 const PAGES: { path: string; heading: string | RegExp }[] = [
   { path: '/dashboard', heading: /Welcome/ },
@@ -24,17 +29,13 @@ const PAGES: { path: string; heading: string | RegExp }[] = [
   { path: '/settings/integrations', heading: 'Settings' },
 ];
 
-test.describe('every nav-linked page renders', () => {
-  test.beforeEach(async ({ page }) => {
-    const account = freshAccount('nav');
-    await signUp(page, account);
-  });
+test('every nav-linked page renders with its heading, not an error boundary', async ({ page }) => {
+  const account = freshAccount('nav');
+  await signUp(page, account);
 
   for (const { path, heading } of PAGES) {
-    test(`${path} loads with its heading, not an error boundary`, async ({ page }) => {
-      const response = await page.goto(path);
-      expect(response?.ok(), `${path} responded with ${response?.status()}`).toBeTruthy();
-      await expect(page.getByRole('heading', { level: 1 })).toContainText(heading);
-    });
+    const response = await page.goto(path);
+    expect(response?.ok(), `${path} responded with ${response?.status()}`).toBeTruthy();
+    await expect(page.getByRole('heading', { level: 1 }), `${path} heading`).toContainText(heading);
   }
 });
