@@ -189,6 +189,7 @@ export function OnboardingWizard({ initialProfile }: { initialProfile: FullProfi
                 <Progress
                   value={completeness.score}
                   tone={completeness.score >= 75 ? 'success' : completeness.score >= 50 ? 'warning' : 'danger'}
+                  aria-label="Profile completeness"
                 />
                 <p className="text-xs leading-relaxed text-ink-4">
                   You can finish now and fill the rest in later. Anything missing shows up as an explicit warning on an

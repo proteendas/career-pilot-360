@@ -15,15 +15,8 @@ import { isValidEmail } from '@/lib/email';
 import { sanitizeLabel, validateUrl } from '@/lib/security';
 import { recordAudit } from '@/lib/audit';
 
-export const CONTACT_SOURCES = ['user_provided', 'public_company_page', 'authorized_api', 'manual'] as const;
-export type ContactSource = (typeof CONTACT_SOURCES)[number];
-
-export const CONTACT_SOURCE_LABELS: Record<ContactSource, string> = {
-  user_provided: 'You provided this',
-  public_company_page: 'Public company page',
-  authorized_api: 'Authorised API',
-  manual: 'Entered manually',
-};
+export { CONTACT_SOURCES, CONTACT_SOURCE_LABELS, type ContactSource } from './contact-types';
+import { CONTACT_SOURCES, type ContactSource } from './contact-types';
 
 export interface CreateContactInput {
   name: string;

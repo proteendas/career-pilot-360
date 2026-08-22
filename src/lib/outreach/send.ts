@@ -14,12 +14,10 @@
  *  - a failure is recorded and returned — it is never silently retried.
  */
 import { and, eq, gte, count } from 'drizzle-orm';
-import { getDb, outreachSends, type OutreachDraft } from '@/lib/db';
-import { NotFoundError } from '@/lib/db/tenant';
+import { getDb, outreachSends } from '@/lib/db';
 import { getEmailProvider, isValidEmail, type EmailAttachment } from '@/lib/email';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { recordAudit } from '@/lib/audit';
-import { randomToken } from '@/lib/crypto';
 import { getContact, isSuppressed, lastSendToRecipient } from './contacts';
 import { getDraft, setDraftStatus } from './drafts';
 

@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { CheckboxField } from '@/components/ui/checkbox';
 import { ContactFormDialog, type ContactFormValues } from './contact-form-dialog';
 import { deleteContactAction, generateDraftAction, suppressEmailAction } from '@/server/actions/outreach';
-import { CONTACT_SOURCE_LABELS, type ContactSource } from '@/lib/outreach/contacts';
+import { CONTACT_SOURCE_LABELS, type ContactSource } from '@/lib/outreach/contact-types';
 import { relativeTime } from '@/lib/utils';
 
 export interface ContactRow {

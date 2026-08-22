@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import { SimpleSelect } from '@/components/ui/select';
 import { createContactAction, updateContactAction } from '@/server/actions/outreach';
-import { CONTACT_SOURCE_LABELS, type ContactSource } from '@/lib/outreach/contacts';
+import { CONTACT_SOURCE_LABELS, type ContactSource } from '@/lib/outreach/contact-types';
 
 export interface ContactFormValues {
   contactId?: string;

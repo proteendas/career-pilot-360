@@ -19,18 +19,31 @@
   --cp-ink: #1f1e1d;
   --cp-ink-2: #45423d;
   --cp-ink-3: #6f6b63;
-  --cp-ink-4: #98938a;
+  /* Darkened from #98938a — that shade measured 3.05:1 on white/paper,
+     below WCAG AA's 4.5:1 for text (axe-core sweep). #746f66 alone still
+     measured 4.45:1 against --paper-2, the lightest surface it actually
+     sits on (sidebar chrome) — this goes one step darker for margin against
+     that specific background, while staying the lightest, most-muted tier
+     relative to ink-3. */
+  --cp-ink-4: #726d64;
 
   /* Terracotta accent (Claude "book cloth") */
-  --cp-accent: #c96442;
-  --cp-accent-hover: #b4573a;
+  /* The original #c96442 measured ~3.9:1 for white-on-accent (buttons) and
+     accent-on-white (links); a first fix (#b4573a, the already-designed
+     hover shade) cleared those two but still measured 3.99:1 for
+     accent-text-on-accent-soft (badges, avatar initials) — the strictest of
+     the three contexts this color is actually used in. This value clears
+     all three (~4.96:1 on accent-soft, ~5.98:1 on white) with margin. */
+  --cp-accent: #a04a2f;
+  --cp-accent-hover: #8a3f28;
   --cp-accent-soft: #f6e7e0;
-  --cp-accent-ring: #c9644266;
+  --cp-accent-ring: #a04a2f66;
 
   /* Semantic */
   --cp-success: #3f7d58;
   --cp-success-soft: #e4f0e8;
-  --cp-warning: #a1671b;
+  /* Darkened from #a1671b (4.05:1 on warning-soft, below AA) to ~4.9:1. */
+  --cp-warning: #8f5c18;
   --cp-warning-soft: #f8eddb;
   --cp-danger: #b3261e;
   --cp-danger-soft: #fae9e7;

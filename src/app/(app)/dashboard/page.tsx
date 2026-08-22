@@ -302,6 +302,7 @@ export default async function DashboardPage() {
                 <Progress
                   value={completeness.score}
                   tone={completeness.score >= 75 ? 'success' : completeness.score >= 50 ? 'warning' : 'danger'}
+                  aria-label="Profile completeness"
                 />
               </div>
 

@@ -21,8 +21,8 @@ import { NotFoundError } from '@/lib/db/tenant';
 import { recordAudit } from '@/lib/audit';
 import { TASK_TYPES, runTask, type TaskType } from './tasks';
 
-export const SCHEDULE_EXPRESSIONS = ['daily', 'weekdays', 'weekly'] as const;
-export type ScheduleExpression = (typeof SCHEDULE_EXPRESSIONS)[number];
+export { SCHEDULE_EXPRESSIONS, type ScheduleExpression } from './types';
+import { SCHEDULE_EXPRESSIONS, type ScheduleExpression } from './types';
 
 export class ScheduleError extends Error {
   constructor(message: string) {

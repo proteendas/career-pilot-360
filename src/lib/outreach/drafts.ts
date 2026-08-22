@@ -35,7 +35,7 @@ export interface DraftContent {
 
 /* ------------------------------------------------------------- templates -- */
 
-function templateSubject(job: JobWithSource | null, contact: OutreachContact): string {
+function templateSubject(job: JobWithSource | null): string {
   return job ? `Interested in the ${job.title} role at ${job.company}` : `Quick introduction`;
 }
 
@@ -68,7 +68,7 @@ function templateFollowUp(job: JobWithSource | null, contact: OutreachContact): 
   ].join('\n');
 }
 
-function templateLinkedIn(job: JobWithSource | null, contact: OutreachContact): string {
+function templateLinkedIn(job: JobWithSource | null): string {
   return job
     ? `Hi — I'm interested in the ${job.title} role at ${job.company} and wanted to connect.`
     : `Hi — I'd love to connect and learn more about opportunities on your team.`;
@@ -137,7 +137,7 @@ async function generateWithAi(
         rejected += 1;
         if (field === 'body') checked.body = templateBody(input.profile, input.job, input.contact);
         if (field === 'followUpBody') checked.followUpBody = templateFollowUp(input.job, input.contact);
-        if (field === 'linkedinMessage') checked.linkedinMessage = templateLinkedIn(input.job, input.contact);
+        if (field === 'linkedinMessage') checked.linkedinMessage = templateLinkedIn(input.job);
       }
     }
 
@@ -157,10 +157,10 @@ export async function generateDraftContent(
 ): Promise<DraftContent> {
   const corpus = `${resumeToPlainText(input.resume)}\n\n${profileToProse(input.profile)}`;
 
-  let subject = templateSubject(input.job, input.contact);
+  let subject = templateSubject(input.job);
   let body = templateBody(input.profile, input.job, input.contact);
   let followUpBody = templateFollowUp(input.job, input.contact);
-  let linkedinMessage = templateLinkedIn(input.job, input.contact);
+  let linkedinMessage = templateLinkedIn(input.job);
   let suggestedTiming = 'Weekday mornings tend to get better response rates.';
   let usedAi = false;
   let provider: string | null = null;

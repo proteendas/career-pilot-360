@@ -6,10 +6,10 @@ test('adding a contact requires provenance and then appears in the list', async 
   await signUp(page, account);
   await page.goto('/outreach');
 
-  await page.getByRole('button', { name: 'Add contact' }).click();
-  await page.getByLabel('Name', { exact: true }).fill('Jordan Recruiter');
-  await page.getByLabel('Email', { exact: true }).fill('jordan@example.com');
-  await page.getByLabel('Provenance').fill('Replied to my application email directly.');
+  await page.getByRole('button', { name: 'Add a contact' }).click();
+  await page.locator('#contact-name').fill('Jordan Recruiter');
+  await page.locator('#contact-email').fill('jordan@example.com');
+  await page.locator('#contact-provenance').fill('Replied to my application email directly.');
   await page.getByRole('button', { name: 'Add contact' }).click();
 
   await expect(page.getByText('Jordan Recruiter')).toBeVisible({ timeout: 10_000 });

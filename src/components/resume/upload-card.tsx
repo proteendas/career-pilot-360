@@ -266,7 +266,7 @@ export function UploadCard({ hasExisting }: { hasExisting: boolean }) {
 
         {uploading ? (
           <div className="space-y-1.5">
-            <Progress value={progress} />
+            <Progress value={progress} aria-label="Upload progress" />
             <p className="text-xs text-ink-4">
               {progress < 50 ? 'Uploading…' : progress < 90 ? 'Extracting and normalising text…' : 'Scoring…'}
             </p>

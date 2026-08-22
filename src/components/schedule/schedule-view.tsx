@@ -26,8 +26,14 @@ import {
   runScheduleNowAction,
   setScheduleEnabledAction,
 } from '@/server/actions/schedule';
-import { TASK_TYPE_DESCRIPTIONS, TASK_TYPE_LABELS, TASK_TYPES, type TaskType } from '@/lib/scheduling/tasks';
-import { SCHEDULE_EXPRESSIONS, type ScheduleExpression } from '@/lib/scheduling/service';
+import {
+  SCHEDULE_EXPRESSIONS,
+  TASK_TYPE_DESCRIPTIONS,
+  TASK_TYPE_LABELS,
+  TASK_TYPES,
+  type ScheduleExpression,
+  type TaskType,
+} from '@/lib/scheduling/types';
 import { relativeTime } from '@/lib/utils';
 
 export interface ScheduleRow {

@@ -26,9 +26,8 @@ import {
   suppressEmail,
   unsuppressEmail,
   updateContact,
-  type ContactSource,
 } from '@/lib/outreach/contacts';
-import { createDraft, generateDraftContent, getDraft, updateDraft } from '@/lib/outreach/drafts';
+import { createDraft, generateDraftContent, updateDraft } from '@/lib/outreach/drafts';
 import { buildSendPreview, OutreachSendError, sendOutreachEmail, sendsToday } from '@/lib/outreach/send';
 import { aiAvailability } from '@/lib/ai/client';
 import { RATE_LIMITS } from '@/lib/rate-limit';

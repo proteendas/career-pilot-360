@@ -12,19 +12,8 @@ import { and, eq, inArray, lt } from 'drizzle-orm';
 import { applications, getDb, jobs, notifications } from '@/lib/db';
 import { scoreJobsForUser } from '@/lib/jobs/match-service';
 
-export const TASK_TYPES = ['refresh_matches', 'stale_application_reminder'] as const;
-export type TaskType = (typeof TASK_TYPES)[number];
-
-export const TASK_TYPE_LABELS: Record<TaskType, string> = {
-  refresh_matches: 'Refresh job matches',
-  stale_application_reminder: 'Remind me about stale applications',
-};
-
-export const TASK_TYPE_DESCRIPTIONS: Record<TaskType, string> = {
-  refresh_matches: 'Re-scores your saved jobs against your current default resume and notifies you if anything changed.',
-  stale_application_reminder:
-    'Checks for applications sitting in "opened externally" or "in progress" for more than 5 days and reminds you to follow up.',
-};
+export { TASK_TYPES, TASK_TYPE_LABELS, TASK_TYPE_DESCRIPTIONS, type TaskType } from './types';
+import { TASK_TYPES, type TaskType } from './types';
 
 export interface TaskResult {
   summary: string;
