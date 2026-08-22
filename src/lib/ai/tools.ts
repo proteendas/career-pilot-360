@@ -17,10 +17,13 @@ import { loadDashboard, type DashboardData } from '@/lib/dashboard';
 import { listApplications } from '@/lib/applications/service';
 import { listMatches } from '@/lib/jobs/match-service';
 import { APPLICATION_STATUSES, STATUS_META, type ApplicationStatus } from '@/lib/applications/state';
+import { getDefaultVersion } from '@/lib/resume/service';
+import { allSkills, parseStructuredResume } from '@/lib/resume/types';
 import type { ToolDefinition } from './types';
 
 export const ASSISTANT_TOOL_NAMES = [
   'get_dashboard_summary',
+  'get_resume_summary',
   'list_job_matches',
   'list_applications',
   'list_outreach_drafts',
@@ -32,6 +35,15 @@ export const ASSISTANT_TOOLS: ToolDefinition[] = [
     name: 'get_dashboard_summary',
     description:
       "The user's current stats: resume ATS score, pending suggestions, match counts, application pipeline, outreach and AI usage. Use this for any general 'how am I doing' question.",
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'get_resume_summary',
+    description:
+      "The content of the user's current default resume — headline, summary, skills, work history " +
+      '(titles, companies, technologies, top bullets), education and certifications. Use this for any ' +
+      "question about what's in the user's resume, what roles or job titles would suit them, or how their " +
+      'experience compares to a role.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
@@ -98,6 +110,27 @@ function summarizeDashboard(d: DashboardData) {
   };
 }
 
+/** Compact enough to stay within a tool-result token budget; still enough to reason about fit. */
+function summarizeResume(resumeRaw: unknown) {
+  const resume = parseStructuredResume(resumeRaw);
+  const truncate = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
+
+  return {
+    headline: resume.contact.headline || null,
+    summary: resume.summary ? truncate(resume.summary, 600) : null,
+    skills: allSkills(resume).slice(0, 60),
+    experience: resume.experience.slice(0, 8).map((exp) => ({
+      title: exp.title,
+      company: exp.company,
+      current: exp.current,
+      technologies: exp.technologies,
+      highlights: exp.bullets.slice(0, 2).map((b) => truncate(b.text, 200)),
+    })),
+    education: resume.education.map((e) => ({ degree: e.degree, field: e.field, institution: e.institution })),
+    certifications: resume.certifications.map((c) => c.name).filter(Boolean),
+  };
+}
+
 const listJobMatchesArgs = z.object({
   minScore: z.number().min(0).max(100).optional(),
   limit: z.number().int().min(1).max(25).optional(),
@@ -120,6 +153,12 @@ export async function executeAssistantTool(name: string, rawArgs: unknown, userI
     case 'get_dashboard_summary': {
       const data = await loadDashboard(userId);
       return summarizeDashboard(data);
+    }
+
+    case 'get_resume_summary': {
+      const version = await getDefaultVersion(userId);
+      if (!version) return { hasResume: false, message: 'The user has not uploaded a resume yet.' };
+      return { hasResume: true, versionName: version.name, ...summarizeResume(version.structuredContent) };
     }
 
     case 'list_job_matches': {

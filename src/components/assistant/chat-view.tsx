@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 const TOOL_LABELS: Record<string, string> = {
   get_dashboard_summary: 'Checked your dashboard stats',
+  get_resume_summary: 'Read your resume',
   list_job_matches: 'Looked up your job matches',
   list_applications: 'Looked up your applications',
   list_outreach_drafts: 'Looked up your outreach drafts',
