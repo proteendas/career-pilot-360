@@ -1,0 +1,18 @@
+node_modules
+.next
+out
+build
+.env
+.env*.local
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+coverage
+playwright-report
+test-results
+.storage
+.DS_Store
+.pglite/
+
+# graphify: regenerable knowledge graph (graphify . --code-only)
+graphify-out/
