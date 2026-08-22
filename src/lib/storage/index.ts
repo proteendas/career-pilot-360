@@ -144,6 +144,18 @@ export function getStorage(): StorageDriver {
   if (e.STORAGE_DRIVER === 'blob' && !e.BLOB_READ_WRITE_TOKEN) {
     throw new StorageError('STORAGE_DRIVER=blob but BLOB_READ_WRITE_TOKEN is not set.');
   }
+  // On Vercel, `auto` falling back to the local filesystem driver is a
+  // silent trap: the function's filesystem is read-only outside `/tmp`, so
+  // every write fails with a cryptic ENOENT rather than a message that says
+  // what's actually missing. Vercel sets VERCEL=1 on every deployment, so
+  // this only ever fires in a real deployment, never in local dev.
+  if (!useBlob && process.env.VERCEL) {
+    throw new StorageError(
+      'Running on Vercel with no BLOB_READ_WRITE_TOKEN configured. Connect a Vercel Blob store to this ' +
+        'project (Storage tab → Create Database → Blob) and redeploy — the token is injected automatically. ' +
+        'The local filesystem driver only works in local development.',
+    );
+  }
   driver = useBlob ? new VercelBlobDriver() : new LocalFsDriver();
   return driver;
 }

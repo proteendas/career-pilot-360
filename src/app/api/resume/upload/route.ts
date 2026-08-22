@@ -5,6 +5,7 @@ import { RESUME_MAX_BYTES, SecurityError } from '@/lib/security';
 import { loadProfile } from '@/lib/profile/service';
 import { uploadResume } from '@/lib/resume/service';
 import { ParseError } from '@/lib/resume/parse';
+import { StorageError } from '@/lib/storage';
 import { isDatabaseConfigured } from '@/lib/db';
 
 // Node runtime: the parsers and storage drivers need Node APIs.
@@ -70,6 +71,13 @@ export async function POST(request: Request) {
     if (err instanceof ParseError) {
       // The file was stored successfully; only parsing failed.
       return NextResponse.json({ ok: false, error: err.message, code: err.code }, { status: 422 });
+    }
+    if (err instanceof StorageError) {
+      // Deployment misconfiguration (e.g. no Blob token on Vercel), not a
+      // user error — the message is written to be actionable by whoever
+      // operates this deployment, so surface it rather than genericizing it.
+      console.error('[resume-upload] storage misconfigured', err.message);
+      return NextResponse.json({ ok: false, error: err.message }, { status: 503 });
     }
     console.error('[resume-upload] unexpected failure', err);
     return NextResponse.json({ ok: false, error: 'The upload could not be completed.' }, { status: 500 });
