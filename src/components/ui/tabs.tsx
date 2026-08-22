@@ -9,7 +9,10 @@ export function TabsList({ className, ...props }: React.ComponentProps<typeof Ta
   return (
     <TabsPrimitive.List
       className={cn(
-        'inline-flex items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface-2 p-1 cp-scroll',
+        // `max-w-full` is the load-bearing part: without a width cap, an
+        // `inline-flex` row just grows to fit every tab, pushing the whole
+        // page wider on mobile instead of scrolling internally.
+        'inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface-2 p-1 cp-scroll',
         className,
       )}
       {...props}

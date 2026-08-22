@@ -9,7 +9,7 @@ export function SettingsTabs() {
   const pathname = usePathname();
 
   return (
-    <div className="mb-6 inline-flex items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface-2 p-1 cp-scroll">
+    <div className="mb-6 inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-line bg-surface-2 p-1 cp-scroll">
       {SETTINGS_TABS.map((tab) => {
         const active = pathname === tab.href;
         return (
