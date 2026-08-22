@@ -56,11 +56,15 @@ export const PROVIDERS: ProviderDefinition[] = [
     keyFormatHint: 'Starts with gsk_',
     consoleUrl: 'https://console.groq.com/keys',
     description: 'Very fast inference with a free developer tier. A good default for resume and matching tasks.',
-    defaultModel: 'llama-3.3-70b-versatile',
+    // Verified live against Groq's /models endpoint — Groq retires models on
+    // a rolling basis (llama-3.3-70b-versatile and llama-3.1-8b-instant,
+    // this registry's previous entries, are both gone as of this check).
+    // Re-verify here before assuming any Groq model id still resolves.
+    defaultModel: 'openai/gpt-oss-120b',
     models: [
-      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', contextWindow: 128_000, supportsStructuredOutput: true, supportsTools: true, freeTierAvailable: true },
-      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (fast)', contextWindow: 128_000, supportsStructuredOutput: true, supportsTools: true, freeTierAvailable: true },
-      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B', contextWindow: 128_000, supportsStructuredOutput: true, supportsTools: true, freeTierAvailable: true },
+      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B', contextWindow: 131_072, supportsStructuredOutput: true, supportsTools: true, freeTierAvailable: true },
+      { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B (fast)', contextWindow: 131_072, supportsStructuredOutput: true, supportsTools: true, freeTierAvailable: true },
+      { id: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B', contextWindow: 131_072, supportsStructuredOutput: false, supportsTools: true, freeTierAvailable: true },
     ],
     supportsEmbeddings: false,
   },

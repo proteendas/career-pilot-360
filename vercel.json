@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "crons": [
-    { "path": "/api/cron/process-tasks", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/enqueue-schedules", "schedule": "0 * * * *" }
+    { "path": "/api/cron/enqueue-schedules", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/process-tasks", "schedule": "15 6 * * *" }
   ],
   "functions": {
     "src/app/api/**/route.ts": { "maxDuration": 60 }

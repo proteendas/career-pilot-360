@@ -1,6 +1,5 @@
 import * as React from 'react';
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface StatCardProps {
@@ -46,8 +45,8 @@ export function StatCard({
   const body = (
     <div
       className={cn(
-        'group relative h-full rounded-xl border border-line bg-surface p-4 shadow-soft transition-shadow',
-        href && 'hover:shadow-lift',
+        'relative h-full rounded-xl border border-line bg-surface p-4 shadow-soft transition-[box-shadow,border-color,background-color]',
+        href && 'hover:border-accent/40 hover:bg-surface-2/60 hover:shadow-lift',
         className,
       )}
     >
@@ -73,13 +72,6 @@ export function StatCard({
         <p className="mt-1.5 text-xs leading-relaxed text-ink-4">{emptyLabel}</p>
       ) : hint ? (
         <p className="mt-1.5 text-xs leading-relaxed text-ink-3">{hint}</p>
-      ) : null}
-
-      {href ? (
-        <ArrowUpRight
-          className="absolute top-4 right-4 size-3.5 text-ink-4 opacity-0 transition-opacity group-hover:opacity-100"
-          aria-hidden
-        />
       ) : null}
     </div>
   );

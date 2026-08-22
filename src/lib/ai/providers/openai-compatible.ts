@@ -203,7 +203,17 @@ export class OpenAiCompatibleProvider implements AIProvider {
       messages: input.messages.map((m) =>
         m.role === 'tool'
           ? { role: 'tool', content: m.content, tool_call_id: m.toolCallId ?? '' }
-          : { role: m.role, content: m.content },
+          : m.role === 'assistant' && m.toolCalls?.length
+            ? {
+                role: 'assistant',
+                content: m.content || null,
+                tool_calls: m.toolCalls.map((tc) => ({
+                  id: tc.id,
+                  type: 'function',
+                  function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) },
+                })),
+              }
+            : { role: m.role, content: m.content },
       ),
       temperature: input.temperature ?? 0.3,
       max_tokens: input.maxOutputTokens ?? 2048,

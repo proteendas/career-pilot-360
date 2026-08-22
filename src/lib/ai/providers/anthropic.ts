@@ -146,7 +146,15 @@ export class AnthropicProvider implements AIProvider {
                 { type: 'tool_result', tool_use_id: m.toolCallId ?? '', content: m.content },
               ],
             }
-          : { role: m.role as 'user' | 'assistant', content: m.content },
+          : m.role === 'assistant' && m.toolCalls?.length
+            ? {
+                role: 'assistant' as const,
+                content: [
+                  ...(m.content ? [{ type: 'text', text: m.content }] : []),
+                  ...m.toolCalls.map((tc) => ({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.arguments ?? {} })),
+                ],
+              }
+            : { role: m.role as 'user' | 'assistant', content: m.content },
       );
 
     return { system, messages };

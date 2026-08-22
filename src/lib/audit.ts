@@ -6,7 +6,8 @@
  *  - Never records full resume or job-description text - only lengths/hashes.
  *  - Long strings are truncated; suspicious keys are replaced with '[redacted]'.
  */
-import { auditEvents, getDb, isDatabaseConfigured } from '@/lib/db';
+import { and, desc, eq, lt } from 'drizzle-orm';
+import { auditEvents, getDb, isDatabaseConfigured, type AuditEvent } from '@/lib/db';
 import { hashIp } from '@/lib/crypto';
 
 export const AUDIT_ACTIONS = [
@@ -138,4 +139,23 @@ export async function recordAudit(input: AuditInput): Promise<void> {
   } catch (err) {
     console.error('[audit] failed to record event', input.action, err instanceof Error ? err.message : err);
   }
+}
+
+/**
+ * Read-only, paginated by `before` (an exclusive `createdAt` cursor) so a
+ * page can "load more" without an offset that shifts as new events arrive.
+ */
+export async function listAuditEvents(
+  userId: string,
+  opts: { limit?: number; before?: Date } = {},
+): Promise<AuditEvent[]> {
+  if (!isDatabaseConfigured()) return [];
+  const conditions = [eq(auditEvents.userId, userId)];
+  if (opts.before) conditions.push(lt(auditEvents.createdAt, opts.before));
+  return getDb()
+    .select()
+    .from(auditEvents)
+    .where(and(...conditions))
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(Math.min(200, opts.limit ?? 50));
 }

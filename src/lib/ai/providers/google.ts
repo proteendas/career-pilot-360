@@ -182,12 +182,28 @@ export class GoogleProvider implements AIProvider {
       .map((m) => m.content)
       .join('\n\n');
 
+    // Gemini's function-calling contract, unlike OpenAI's/Anthropic's, has no
+    // live-tested provider in this codebase (no Google key exercised this
+    // path) — this mapping follows Google's documented format but hasn't
+    // been verified against a real response the way the openai-compatible
+    // adapter's tool-call round trip has.
     const contents = input.messages
       .filter((m) => m.role !== 'system')
-      .map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }));
+      .map((m) => {
+        if (m.role === 'tool') {
+          return {
+            role: 'user',
+            parts: [{ functionResponse: { name: m.name ?? '', response: extractJson(m.content) } }],
+          };
+        }
+        if (m.role === 'assistant' && m.toolCalls?.length) {
+          return {
+            role: 'model',
+            parts: m.toolCalls.map((tc) => ({ functionCall: { name: tc.name, args: tc.arguments ?? {} } })),
+          };
+        }
+        return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] };
+      });
 
     return { systemInstruction, contents };
   }

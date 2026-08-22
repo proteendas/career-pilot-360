@@ -68,9 +68,18 @@ export interface TokenUsage {
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
-  /** Present on tool result messages. */
+  /** Present on tool result messages — must match the id in the triggering assistant message's `toolCalls`. */
   toolCallId?: string;
   name?: string;
+  /**
+   * Present on an assistant message that issued tool calls. Required for a
+   * correct multi-turn transcript: every provider's wire format needs the
+   * tool call declared on the assistant turn before the tool-result turn
+   * that answers it — omitting this breaks providers with strict
+   * transcript validation (e.g. Groq's harmony template rejects a
+   * dangling tool-result message with no matching declared call).
+   */
+  toolCalls?: ToolCall[];
 }
 
 export interface ToolDefinition {
