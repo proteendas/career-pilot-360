@@ -35,6 +35,7 @@ export const AUDIT_ACTIONS = [
   'resume.default_changed',
   'resume.pdf_generated',
   'resume.pdf_deleted',
+  'resume.docx_generated',
   'job.imported',
   'job.searched',
   'job.matched',

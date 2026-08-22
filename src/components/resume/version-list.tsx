@@ -165,6 +165,12 @@ export function VersionList({ versions }: { versions: VersionRow[] }) {
                         PDF
                       </a>
                     </Button>
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={`/api/resume/${version.id}/docx`}>
+                        <Download aria-hidden />
+                        DOCX
+                      </a>
+                    </Button>
                     {version.hasPdf ? (
                       <Button
                         variant="ghost"

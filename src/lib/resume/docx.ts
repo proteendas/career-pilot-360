@@ -27,7 +27,7 @@ import { contentHash } from '@/lib/security';
 import type { StructuredResume } from './types';
 import { PAGE_SIZES, THEMES, type ResumeTemplate } from './theme';
 import type { PdfOptions } from './pdf';
-import { splitMarkdownLink } from './markdown-link';
+import { parseInlineLinks, splitMarkdownLink } from './markdown-link';
 
 export type DocxOptions = PdfOptions;
 
@@ -139,11 +139,30 @@ export async function generateResumeDocx(
     children.push(new Paragraph({ children: runs, spacing: opts.spacing ?? baseSpacing, alignment: opts.align }));
   };
 
+  /**
+   * Runs for free text that may contain inline `[label](url)` links the
+   * parser recovered from the original document — each becomes a real
+   * `ExternalHyperlink`, everything else stays plain text.
+   */
+  const inlineRuns = (
+    value: string,
+    opts: { size?: number; color?: string; italics?: boolean; bold?: boolean } = {},
+  ): ParagraphChild[] =>
+    parseInlineLinks(value)
+      .filter((seg) => seg.text)
+      .map((seg) =>
+        textOrLink(seg.text, {
+          url: seg.url,
+          size: HALF_PT(opts.size ?? baseSizePt),
+          color: opts.color ?? INK,
+          italics: opts.italics,
+          bold: opts.bold,
+        }),
+      );
+
   const plainText = (value: string, opts: { size?: number; color?: string; italics?: boolean } = {}) => {
     if (!value) return;
-    paragraph([
-      textOrLink(value, { size: HALF_PT(opts.size ?? baseSizePt), color: opts.color ?? INK, italics: opts.italics }),
-    ]);
+    paragraph(inlineRuns(value, opts));
   };
 
   /** "Title ................ dates" on one line via a right tab stop. */
@@ -167,15 +186,14 @@ export async function generateResumeDocx(
 
   const bullet = (text: string) => {
     if (!text) return;
-    const link = splitMarkdownLink(text);
-    const run = link
-      ? textOrLink(text, { size: HALF_PT(baseSizePt) })
-      : new TextRun({ text, size: HALF_PT(baseSizePt), color: INK });
     children.push(
       new Paragraph({
         indent: { left: PT(14), hanging: PT(14) },
         spacing: baseSpacing,
-        children: [new TextRun({ text: '•  ', size: HALF_PT(baseSizePt), color: MUTED }), run],
+        children: [
+          new TextRun({ text: '•  ', size: HALF_PT(baseSizePt), color: MUTED }),
+          ...inlineRuns(text, { size: baseSizePt }),
+        ],
       }),
     );
   };

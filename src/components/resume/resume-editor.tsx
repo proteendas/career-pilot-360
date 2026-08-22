@@ -97,6 +97,21 @@ export function ResumeEditor({
     window.location.href = `/api/resume/${versionId}/pdf`;
   }
 
+  function exportDocx() {
+    if (dirty) {
+      toast.error('Save your changes first — the DOCX is rendered from the saved version.');
+      return;
+    }
+    const params = new URLSearchParams({
+      template,
+      fontSize: String(fontSize),
+      margin: String(margin),
+      lineSpacing: String(lineSpacing),
+      pageMode: singlePage ? 'single' : 'multi',
+    });
+    window.location.href = `/api/resume/${versionId}/docx?${params.toString()}`;
+  }
+
   /* ------------------------------------------------------------- mutators */
 
   const setContact = <K extends keyof StructuredResume['contact']>(
@@ -455,6 +470,10 @@ export function ResumeEditor({
               >
                 <Download aria-hidden />
                 Export PDF
+              </Button>
+              <Button variant="secondary" onClick={exportDocx} disabled={dirty} className="w-full">
+                <Download aria-hidden />
+                Download DOCX
               </Button>
               <Button asChild variant="ghost" size="sm" className="w-full">
                 <Link href={`/resume/${versionId}/analysis`}>Full analysis</Link>

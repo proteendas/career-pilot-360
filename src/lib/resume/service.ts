@@ -38,6 +38,7 @@ import {
 } from './types';
 import { analyzeResume, type AtsContext, type AtsReport } from './ats';
 import { generateResumePdf, isResumeTemplate, type PdfOptions, type ResumeTemplate } from './pdf';
+import { generateResumeDocx } from './docx';
 import type { FullProfile } from '@/lib/profile/types';
 
 /* ------------------------------------------------------------------ upload */
@@ -675,6 +676,38 @@ export async function getGeneratedPdf(
   const object = await getStorage().get(version.pdfBlobPath);
   if (!object) return null;
   return { bytes: object.bytes, filename: `${slugify(version.name)}.pdf` };
+}
+
+/**
+ * Render a version to DOCX, matching whatever template/options the PDF was
+ * last exported with. Generated on demand and streamed straight back —
+ * unlike the PDF, it is not stored, since regenerating it is cheap and it
+ * would otherwise need its own blob-cleanup lifecycle for no real benefit.
+ */
+export async function generateVersionDocx(
+  userId: string,
+  versionId: string,
+  options: PdfOptions = {},
+): Promise<{ bytes: Uint8Array; filename: string }> {
+  const version = await getVersion(userId, versionId);
+  const resume = parseStructuredResume(version.structuredContent);
+
+  const storedOptions = (version.templateOptions ?? {}) as PdfOptions;
+  const template: ResumeTemplate = isResumeTemplate(options.template ?? version.template)
+    ? ((options.template ?? version.template) as ResumeTemplate)
+    : 'classic';
+
+  const docx = await generateResumeDocx(resume, { ...storedOptions, ...options, template });
+
+  await recordAudit({
+    userId,
+    action: 'resume.docx_generated',
+    entityType: 'resume_version',
+    entityId: versionId,
+    metadata: { template, contentHash: docx.contentHash },
+  });
+
+  return { bytes: docx.bytes, filename: `${slugify(version.name)}.docx` };
 }
 
 export function slugify(value: string): string {

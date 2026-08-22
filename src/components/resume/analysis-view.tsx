@@ -187,6 +187,12 @@ export function AnalysisView({
                     Download PDF
                   </a>
                 </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <a href={`/api/resume/${versionId}/docx`}>
+                    <Download aria-hidden />
+                    Download DOCX
+                  </a>
+                </Button>
               </div>
             </div>
           </div>

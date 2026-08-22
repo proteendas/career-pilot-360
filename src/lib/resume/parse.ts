@@ -157,15 +157,76 @@ async function extractFromPdf(bytes: Uint8Array): Promise<ExtractionResult> {
   };
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+};
+
+function decodeHtmlEntities(value: string): string {
+  return value.replace(/&(amp|lt|gt|quot|apos|nbsp|#\d+);/g, (m, code: string) => {
+    if (code.startsWith('#')) return String.fromCharCode(Number(code.slice(1)));
+    return HTML_ENTITIES[code] ?? m;
+  });
+}
+
+/**
+ * Hyperlinks (label + URL) as they appear in a docx's rendered HTML.
+ * `extractRawText` — used for the actual extraction below — discards them
+ * entirely, so a word that was a link in the original ("GitHub", "Verify")
+ * would otherwise disappear with no trace of where it pointed.
+ */
+function extractDocxHyperlinks(html: string): { label: string; url: string }[] {
+  const out: { label: string; url: string }[] = [];
+  for (const m of html.matchAll(/<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+    const url = m[1]!.trim();
+    const label = decodeHtmlEntities(m[2]!.replace(/<[^>]+>/g, '')).trim();
+    if (label && /^https?:\/\//i.test(url)) out.push({ label, url });
+  }
+  return out;
+}
+
+/**
+ * Best-effort: rewrite each hyperlink's label in the plain-text extraction as
+ * `[label](url)`, our shared inline-link convention (see `markdown-link.ts`)
+ * -- so a hyperlink survives into the structured resume instead of silently
+ * becoming plain, unlinked text.
+ *
+ * Walks forward through the text exactly once, in document order, matching
+ * each link to the next occurrence of its label after the previous match.
+ * This matters because labels routinely repeat -- "GitHub" linked once in
+ * the header and again in a project bullet, each to a different URL -- so a
+ * plain indexOf(label) per link would keep finding the first occurrence (or,
+ * worse, re-match text a previous iteration just inserted) instead of each
+ * link's own occurrence.
+ */
+function inlineDocxHyperlinks(text: string, links: { label: string; url: string }[]): string {
+  let out = '';
+  let cursor = 0;
+  for (const { label, url } of links) {
+    if (label.length < 2 || label.length > 200) continue;
+    const idx = text.indexOf(label, cursor);
+    if (idx === -1) continue;
+    out += text.slice(cursor, idx) + `[${label}](${url})`;
+    cursor = idx + label.length;
+  }
+  out += text.slice(cursor);
+  return out;
+}
+
 async function extractFromDocx(bytes: Uint8Array): Promise<ExtractionResult> {
   let raw = '';
+  let links: { label: string; url: string }[] = [];
   const warnings: string[] = [];
 
   try {
     const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ buffer: Buffer.from(bytes) });
-    raw = result.value ?? '';
-    for (const msg of result.messages ?? []) {
+    const buffer = Buffer.from(bytes);
+    const [textResult, htmlResult] = await Promise.all([
+      mammoth.extractRawText({ buffer }),
+      mammoth.convertToHtml({ buffer }).catch(() => null),
+    ]);
+    raw = textResult.value ?? '';
+    if (htmlResult) links = extractDocxHyperlinks(htmlResult.value ?? '');
+    for (const msg of textResult.messages ?? []) {
       // Mammoth reports unsupported constructs; the useful ones mention tables
       // and text boxes, both of which parse badly in ATS pipelines.
       if (/table|textbox|text box|drawing|image/i.test(msg.message)) {
@@ -183,6 +244,7 @@ async function extractFromDocx(bytes: Uint8Array): Promise<ExtractionResult> {
     );
   }
 
+  if (links.length) raw = inlineDocxHyperlinks(raw, links);
   const text = normalizeWhitespace(sanitizeImportedText(raw));
   const likelyScanned = text.trim().length < 200;
   if (likelyScanned) {

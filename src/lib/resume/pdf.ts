@@ -31,7 +31,7 @@ import {
 import { contentHash } from '@/lib/security';
 import type { StructuredResume } from './types';
 import { PAGE_SIZES, THEMES, type ResumeTemplate, type Theme } from './theme';
-import { splitMarkdownLink } from './markdown-link';
+import { parseInlineLinks, splitMarkdownLink } from './markdown-link';
 
 export {
   RESUME_TEMPLATES,
@@ -102,40 +102,75 @@ function toWinAnsi(value: string): string {
     .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
 }
 
-/** Greedy word wrap against real font metrics. */
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const safe = toWinAnsi(text).replace(/\s+/g, ' ').trim();
-  if (!safe) return [];
+/** A word tagged with the URL it links to, when it came from a `[label](url)` span. */
+interface Word {
+  text: string;
+  url?: string;
+}
 
-  const words = safe.split(' ');
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-      current = candidate;
-      continue;
-    }
-    if (current) lines.push(current);
-
-    // A single word longer than the line: break it by character.
-    if (font.widthOfTextAtSize(word, size) > maxWidth) {
-      let chunk = '';
-      for (const char of word) {
-        if (font.widthOfTextAtSize(chunk + char, size) > maxWidth) {
-          lines.push(chunk);
-          chunk = char;
-        } else {
-          chunk += char;
-        }
-      }
-      current = chunk;
-    } else {
-      current = word;
+/** Split free text into words, resolving any inline `[label](url)` links first. */
+function tokenizeWords(value: string): Word[] {
+  const words: Word[] = [];
+  for (const seg of parseInlineLinks(value)) {
+    const safe = toWinAnsi(seg.text).replace(/\s+/g, ' ').trim();
+    if (!safe) continue;
+    for (const w of safe.split(' ')) {
+      if (w) words.push({ text: w, url: seg.url });
     }
   }
-  if (current) lines.push(current);
+  return words;
+}
+
+/**
+ * Greedy word wrap against real font metrics — over tagged words rather than
+ * a plain string, so a hyperlinked word survives wrapping and still knows
+ * which URL it belongs to.
+ */
+function wrapWords(words: Word[], font: PDFFont, size: number, maxWidth: number, spaceWidth: number): Word[][] {
+  const lines: Word[][] = [];
+  let current: Word[] = [];
+  let currentWidth = 0;
+
+  const flush = () => {
+    if (current.length) lines.push(current);
+    current = [];
+    currentWidth = 0;
+  };
+
+  for (const word of words) {
+    const wordWidth = font.widthOfTextAtSize(word.text, size);
+
+    if (wordWidth > maxWidth) {
+      // A single word longer than the line: break it by character.
+      flush();
+      let chunk = '';
+      for (const char of word.text) {
+        const candidate = chunk + char;
+        if (chunk && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+          lines.push([{ text: chunk, url: word.url }]);
+          chunk = char;
+        } else {
+          chunk = candidate;
+        }
+      }
+      if (chunk) {
+        current = [{ text: chunk, url: word.url }];
+        currentWidth = font.widthOfTextAtSize(chunk, size);
+      }
+      continue;
+    }
+
+    const withSpace = current.length ? spaceWidth + wordWidth : wordWidth;
+    if (current.length && currentWidth + withSpace > maxWidth) {
+      flush();
+      current = [word];
+      currentWidth = wordWidth;
+    } else {
+      current.push(word);
+      currentWidth += withSpace;
+    }
+  }
+  flush();
   return lines;
 }
 
@@ -222,7 +257,11 @@ class Renderer {
     this.page.node.addAnnot(ref);
   }
 
-  /** Draw wrapped text. Returns the height consumed. */
+  /**
+   * Draw wrapped text. Any inline `[label](url)` span the parser recovered
+   * from the original document — e.g. a word that was a hyperlink in the
+   * upload — is drawn as a real clickable link, underlined, in place.
+   */
   text(
     value: string,
     opts: {
@@ -239,16 +278,28 @@ class Renderer {
     const color = opts.color ?? this.ink;
     const indent = opts.indent ?? 0;
     const width = (opts.maxWidth ?? this.contentWidth) - indent;
+    const spaceWidth = font.widthOfTextAtSize(' ', size);
 
-    for (const line of wrapText(value, font, size, width)) {
+    for (const line of wrapWords(tokenizeWords(value), font, size, width, spaceWidth)) {
       this.ensure(this.lineHeight(size));
-      this.page.drawText(line, {
-        x: this.margin + indent,
-        y: this.y - size,
-        size,
-        font,
-        color,
-        ...(opts.letterSpacing ? { characterSpacing: opts.letterSpacing } : {}),
+      const y = this.y - size;
+      let x = this.margin + indent;
+      line.forEach((word, i) => {
+        if (i > 0) x += spaceWidth;
+        const w = font.widthOfTextAtSize(word.text, size);
+        this.page.drawText(word.text, {
+          x,
+          y,
+          size,
+          font,
+          color,
+          ...(opts.letterSpacing ? { characterSpacing: opts.letterSpacing } : {}),
+        });
+        if (word.url) {
+          this.page.drawLine({ start: { x, y: y - 1 }, end: { x: x + w, y: y - 1 }, thickness: 0.5, color });
+          this.addLink(x, y - 2, w, size + 3, word.url);
+        }
+        x += w;
       });
       this.y -= this.lineHeight(size);
     }
@@ -308,30 +359,39 @@ class Renderer {
     this.y -= this.lineHeight(size);
   }
 
-  /** A bullet line with a hanging indent, so wrapped lines align. */
+  /**
+   * A bullet line with a hanging indent, so wrapped lines align. Any inline
+   * `[label](url)` span is drawn as a real clickable link, same as `text()`.
+   */
   bullet(value: string, opts: { size?: number; indent?: number } = {}): void {
     const font = this.fonts[this.theme.bodyFont === 'serif' ? 'serif' : 'sans'];
     const size = opts.size ?? this.baseSize;
     const indent = opts.indent ?? 0;
     const markerWidth = font.widthOfTextAtSize('- ', size);
     const width = this.contentWidth - indent - markerWidth;
-    const lines = wrapText(value, font, size, width);
+    const spaceWidth = font.widthOfTextAtSize(' ', size);
+    const lines = wrapWords(tokenizeWords(value), font, size, width, spaceWidth);
     if (lines.length === 0) return;
 
     // Keep at least the first two lines of a bullet together.
     this.ensure(this.lineHeight(size) * Math.min(2, lines.length));
 
-    lines.forEach((line, i) => {
+    lines.forEach((words, i) => {
       this.ensure(this.lineHeight(size));
+      const y = this.y - size;
       if (i === 0) {
-        this.page.drawText('-', { x: this.margin + indent, y: this.y - size, size, font, color: this.muted });
+        this.page.drawText('-', { x: this.margin + indent, y, size, font, color: this.muted });
       }
-      this.page.drawText(line, {
-        x: this.margin + indent + markerWidth,
-        y: this.y - size,
-        size,
-        font,
-        color: this.ink,
+      let x = this.margin + indent + markerWidth;
+      words.forEach((word, wi) => {
+        if (wi > 0) x += spaceWidth;
+        const w = font.widthOfTextAtSize(word.text, size);
+        this.page.drawText(word.text, { x, y, size, font, color: this.ink });
+        if (word.url) {
+          this.page.drawLine({ start: { x, y: y - 1 }, end: { x: x + w, y: y - 1 }, thickness: 0.5, color: this.ink });
+          this.addLink(x, y - 2, w, size + 3, word.url);
+        }
+        x += w;
       });
       this.y -= this.lineHeight(size);
     });
@@ -532,13 +592,7 @@ export async function generateResumePdf(
       if (exp.summary) r.text(exp.summary, { size: baseSize });
 
       for (const bullet of exp.bullets) {
-        if (!bullet.text) continue;
-        const link = splitMarkdownLink(bullet.text);
-        if (link) {
-          r.bullet(link.label, { size: baseSize });
-        } else {
-          r.bullet(bullet.text, { size: baseSize });
-        }
+        if (bullet.text) r.bullet(bullet.text, { size: baseSize });
       }
 
       if (exp.technologies.length > 0) {
