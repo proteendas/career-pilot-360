@@ -383,6 +383,44 @@ describe('submission can only be recorded by the user', () => {
     expect(events.some((e) => e.eventType === 'application.marked_submitted')).toBe(true);
   });
 
+  it('does not wipe the packet or resume version link when they are not supplied', async () => {
+    // Regression test: markSubmittedByUser must only overwrite fields the
+    // caller actually passed. The real submission flow only supplies a URL
+    // and notes — it must not null out applicationPacketId/resumeVersionId
+    // that were already set when the application was created.
+    const resume = normalizeResumeText(STRONG_RESUME).resume;
+    const job = await getJob(
+      user.id,
+      (
+        await importJob(
+          buildManualJob({ title: 'Link-preserving role', company: 'LinkCo', description: SAMPLE_JOB_DESCRIPTION }, 'manual'),
+          { userId: user.id, ownerUserId: user.id },
+        )
+      ).jobId,
+    );
+    const profile = await loadProfile(user.id);
+    const ownResumeVersionId = await createVersion(user.id, { name: 'Link-preserving base', structuredContent: resume });
+    const content = await generateApplicationPacket(
+      { userId: user.id, job, match: null, resume, profile },
+      { useAi: false },
+    );
+    const packetId = await createPacket(user.id, { jobId: job.id, resumeVersionId: ownResumeVersionId, content });
+    const app = await getOrCreateApplication(user.id, job.id, packetId);
+
+    await transitionApplication(user.id, app.id, { toStatus: 'ready_for_review', actor: 'user' });
+    await transitionApplication(user.id, app.id, { toStatus: 'approved', actor: 'user' });
+
+    // Mirrors the real action: only externalUrl and userNotes are supplied.
+    const submitted = await markSubmittedByUser(user.id, app.id, {
+      externalUrl: 'https://linkco.example/apply',
+      userNotes: 'via review page',
+    });
+
+    expect(submitted.applicationPacketId).toBe(packetId);
+    expect(submitted.status).toBe('submitted_by_user');
+    expect(submitted.externalUrl).toBe('https://linkco.example/apply');
+  });
+
   it('cannot be marked submitted twice', async () => {
     await expect(
       transitionApplication(user.id, applicationId, { toStatus: 'submitted_by_user', actor: 'user' }),

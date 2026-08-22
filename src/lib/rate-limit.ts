@@ -70,7 +70,12 @@ export async function checkRateLimit(
         END
       RETURNING count, window_start
     `);
-    const row = Array.isArray(rows) ? rows[0] : undefined;
+    // `db.execute()` returns the rows array directly on the postgres.js driver,
+    // but `{ rows: [...] }` on the PGlite driver (used in tests/local dev) —
+    // handle both shapes, or PGlite silently falls through to the `?? 1`
+    // default below on every call and the cap never trips.
+    const rowsArray = Array.isArray(rows) ? rows : (rows as { rows?: unknown[] })?.rows ?? [];
+    const row = rowsArray[0] as { count: number; window_start: string } | undefined;
     const count = Number(row?.count ?? 1);
     const startedAt = row?.window_start ? new Date(row.window_start).getTime() : Date.now();
     const elapsed = Date.now() - startedAt;
@@ -103,9 +108,21 @@ function memoryCheck(key: string, rule: RateLimitRule): RateLimitResult {
   };
 }
 
-/** Test-only. */
-export function __clearRateLimitMemory(): void {
+/**
+ * Test-only. Clears the in-memory fallback map AND, when a database is
+ * configured, deletes the durable `rate_limits` rows — the in-memory map
+ * alone is not enough once a test DB is wired in, since `checkRateLimit`
+ * prefers the durable counter whenever `isDatabaseConfigured()` is true.
+ */
+export async function __clearRateLimitMemory(): Promise<void> {
   memory.clear();
+  if (isDatabaseConfigured()) {
+    try {
+      await getDb().delete(rateLimits);
+    } catch (err) {
+      console.error('[rate-limit] __clearRateLimitMemory: failed to clear durable counters', err);
+    }
+  }
 }
 
 export class RateLimitError extends Error {

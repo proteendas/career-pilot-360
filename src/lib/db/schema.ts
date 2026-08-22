@@ -526,6 +526,10 @@ export const outreachDrafts = pgTable(
     subject: text('subject').notNull().default(''),
     body: text('body').notNull().default(''),
     followUpBody: text('follow_up_body'),
+    /** Draft-and-copy only — see docs/adapters.md. Never sent by this app. */
+    linkedinMessage: text('linkedin_message'),
+    /** Plain-language window ("weekday mornings"), never a specific date/time. */
+    suggestedTiming: text('suggested_timing'),
     suggestedSendAt: timestamp('suggested_send_at', { withTimezone: true }),
     attachmentVersionId: uuid('attachment_version_id').references(() => resumeVersions.id, { onDelete: 'set null' }),
     /** 'draft' | 'approved' | 'sent' | 'failed' | 'cancelled' */
