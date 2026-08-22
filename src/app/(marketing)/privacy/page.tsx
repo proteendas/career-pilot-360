@@ -207,7 +207,7 @@ export default function PrivacyPage() {
           body: (
             <p>
               Questions, or a request about your data:{' '}
-              <a href="mailto:privacy@careerpilot360.example">privacy@careerpilot360.example</a>. If you are running
+              <a href="mailto:prot.das15@gmail.com">prot.das15@gmail.com</a>. If you are running
               your own deployment, replace this address with your own operator contact.
             </p>
           ),

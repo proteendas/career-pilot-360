@@ -85,7 +85,7 @@ export function MatchDetailView({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
+    <div className="grid items-start gap-5 lg:grid-cols-[1fr_22rem]">
       {/* ------------------------------------------------------------- main */}
       <div className="min-w-0 space-y-4">
         <Card>
@@ -107,14 +107,17 @@ export function MatchDetailView({
 
             <div className="mt-4 flex flex-wrap gap-2">
               {job.applyUrl ? (
-                <Button asChild>
-                  <a href={job.applyUrl} target="_blank" rel="noreferrer noopener">
-                    Open on {job.company}
+                <Button asChild className="w-full min-w-0 sm:w-auto">
+                  <a href={job.applyUrl} target="_blank" rel="noreferrer noopener" className="min-w-0">
+                    {/* The label includes the company name, which can be arbitrarily
+                        long — truncate it with an ellipsis instead of letting the
+                        button's forced-nowrap text force it wider than its column. */}
+                    <span className="truncate">Open on {job.company}</span>
                     <ExternalLink aria-hidden />
                   </a>
                 </Button>
               ) : null}
-              <Button asChild variant="secondary">
+              <Button asChild variant="secondary" className="w-full sm:w-auto">
                 <Link href={`/applications/new?jobId=${job.id}`}>
                   <FileText aria-hidden />
                   Prepare application packet
@@ -186,7 +189,7 @@ export function MatchDetailView({
 
       {/* --------------------------------------------------------- sidebar */}
       <aside className="space-y-4">
-        <Card className="lg:sticky lg:top-20">
+        <Card>
           <CardContent className="pt-5">
             {!hasResume ? (
               <Alert tone="warning">Upload a resume to score this job.</Alert>

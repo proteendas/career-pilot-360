@@ -18,9 +18,9 @@ export function Hero() {
       <div className="cp-grid-bg pointer-events-none absolute inset-x-0 top-0 h-[520px] opacity-60" aria-hidden />
 
       <div className="relative mx-auto w-full max-w-6xl px-4 pt-14 pb-20 sm:px-6 lg:pt-20">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid min-w-0 items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           {/* ---------------------------------------------------------- copy */}
-          <div>
+          <div className="min-w-0">
             <Reveal>
               <Badge tone="accent" className="mb-5 px-2.5 py-1">
                 <Sparkles aria-hidden />
@@ -46,13 +46,13 @@ export function Hero() {
 
             <Reveal delay={0.15}>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Button asChild size="lg" className="group">
+                <Button asChild size="lg" className="group w-full sm:w-auto">
                   <Link href="/signup">
                     Analyse my resume
                     <ArrowRight className="transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="secondary">
+                <Button asChild size="lg" variant="secondary" className="w-full sm:w-auto">
                   <Link href="#how-it-works">Explore how it works</Link>
                 </Button>
               </div>
@@ -71,7 +71,7 @@ export function Hero() {
           </div>
 
           {/* ------------------------------------------------------- visual */}
-          <Reveal delay={0.18} y={22}>
+          <Reveal delay={0.18} y={22} className="min-w-0">
             <div className="relative">
               <div
                 className="absolute -inset-4 rounded-3xl bg-accent/5 blur-2xl"

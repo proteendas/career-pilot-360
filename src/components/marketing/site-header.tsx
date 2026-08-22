@@ -35,7 +35,7 @@ export function SiteHeader({ signedIn }: { signedIn?: boolean }) {
       )}
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <Logo />
+        <Logo wordmarkClassName="hidden min-[360px]:flex" />
 
         <nav aria-label="Main" className="ml-4 hidden items-center gap-1 md:flex">
           {NAV.map((item) => (
@@ -60,7 +60,7 @@ export function SiteHeader({ signedIn }: { signedIn?: boolean }) {
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
                 <Link href="/login">Sign in</Link>
               </Button>
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="hidden min-[360px]:inline-flex">
                 <Link href="/signup">Get started</Link>
               </Button>
             </>

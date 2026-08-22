@@ -37,7 +37,7 @@ export function SiteFooter() {
       <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div className="space-y-3">
-            <Logo />
+            <Logo className="mb-3" />
             <p className="max-w-xs text-sm leading-relaxed text-ink-3">
               An AI job application assistant that prepares the work and leaves every outward-facing decision to you.
             </p>
@@ -69,8 +69,8 @@ export function SiteFooter() {
         <div className="mt-10 flex flex-col gap-3 border-t border-line pt-6 text-xs text-ink-4 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} CareerPilot360. All rights reserved.</p>
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <a href="mailto:support@careerpilot360.example" className="hover:text-accent">
-              support@careerpilot360.example
+            <a href="mailto:prot.das15@gmail.com" className="hover:text-accent">
+              prot.das15@gmail.com
             </a>
             <span aria-hidden className="hidden sm:inline">
               ·

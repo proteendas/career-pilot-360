@@ -224,7 +224,7 @@ export default function SecurityPage() {
           heading: 'Reporting a vulnerability',
           body: (
             <p>
-              Email <a href="mailto:security@careerpilot360.example">security@careerpilot360.example</a> with enough
+              Email <a href="mailto:prot.das15@gmail.com">prot.das15@gmail.com</a> with enough
               detail to reproduce. Please do not test against other people’s accounts. If you run your own deployment,
               replace this with your own contact address. See also our{' '}
               <Link href="/privacy">privacy policy</Link>.

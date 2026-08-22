@@ -365,22 +365,22 @@ const FAQS = [
 export function FaqSection() {
   return (
     <Section id="faq">
-      <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
-        <div>
+      <div className="grid min-w-0 gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="min-w-0">
           <SectionHeading
             align="left"
             eyebrow="FAQ"
             title="The questions worth asking first"
             description="Mostly about what the product refuses to do."
           />
-          <Button asChild variant="secondary" className="mt-6">
+          <Button asChild variant="secondary" className="mt-6 w-full sm:w-auto">
             <Link href="/security">
               Read the security page
               <ExternalLink aria-hidden />
             </Link>
           </Button>
         </div>
-        <Reveal>
+        <Reveal className="min-w-0">
           <Accordion type="single" collapsible className="rounded-xl border border-line bg-surface px-5">
             {FAQS.map((f, i) => (
               <AccordionItem key={f.q} value={`faq-${i}`}>

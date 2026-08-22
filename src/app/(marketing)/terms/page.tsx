@@ -167,7 +167,7 @@ export default function TermsPage() {
           heading: 'Contact',
           body: (
             <p>
-              <a href="mailto:legal@careerpilot360.example">legal@careerpilot360.example</a>. If you operate your own
+              <a href="mailto:prot.das15@gmail.com">prot.das15@gmail.com</a>. If you operate your own
               deployment, substitute your own contact details here.
             </p>
           ),

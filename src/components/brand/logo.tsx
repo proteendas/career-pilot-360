@@ -23,18 +23,21 @@ export function Logo({
   className,
   href = '/',
   showWordmark = true,
+  /** Extra classes on the wordmark wrapper — e.g. `hidden min-[360px]:flex` to hide it only on the narrowest phones. */
+  wordmarkClassName,
   subtitle,
 }: {
   className?: string;
   href?: string | null;
   showWordmark?: boolean;
+  wordmarkClassName?: string;
   subtitle?: string;
 }) {
   const content = (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
       <LogoMark />
       {showWordmark ? (
-        <span className="flex flex-col leading-none">
+        <span className={cn('flex flex-col leading-none', wordmarkClassName)}>
           <span className="text-[15px] font-semibold tracking-tight text-ink">
             CareerPilot<span className="text-accent">360</span>
           </span>
@@ -48,7 +51,15 @@ export function Logo({
 
   if (!href) return content;
   return (
-    <Link href={href} className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--cp-accent-ring)]">
+    <Link
+      href={href}
+      // Explicit so the accessible name doesn't depend on whether
+      // `wordmarkClassName` is visually hiding the text at this viewport
+      // width (e.g. below 360px in the site header) — without this, a
+      // screen reader would announce nothing at those widths.
+      aria-label={showWordmark ? 'CareerPilot360' : undefined}
+      className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--cp-accent-ring)]"
+    >
       {content}
     </Link>
   );
