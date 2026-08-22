@@ -2,6 +2,7 @@
   "name": "careerpilot360",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "CareerPilot360 - multi-tenant AI job application assistant (compliant, human-in-the-loop).",
   "engines": {
     "node": ">=20.9.0"

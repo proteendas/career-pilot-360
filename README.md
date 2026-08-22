@@ -140,3 +140,11 @@ DATABASE_URL="..." npm run db:seed
 - There is no scraping, browser automation, or third-party auto-submit
   anywhere in this codebase by design — see `CLAUDE.md` for the compliance
   rules this repo is not allowed to violate, even under a feature request.
+
+## More docs
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the system is built, with diagrams: request lifecycles, the data model, the AI provider abstraction, the compliance boundaries, and more.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — local setup, coding conventions, how to add a job source or AI provider.
+- [SECURITY.md](SECURITY.md) — how to report a vulnerability privately.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards for issues, PRs, and discussions.
+- [LICENSE](LICENSE) — MIT.
