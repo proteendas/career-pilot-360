@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  deleteGeneratedPdfAction,
   deleteVersionAction,
   duplicateVersionAction,
   renameVersionAction,
@@ -60,6 +61,7 @@ export function VersionList({ versions }: { versions: VersionRow[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<VersionRow | null>(null);
+  const [deletePdfTarget, setDeletePdfTarget] = React.useState<VersionRow | null>(null);
   const [renameTarget, setRenameTarget] = React.useState<VersionRow | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
 
@@ -163,6 +165,16 @@ export function VersionList({ versions }: { versions: VersionRow[] }) {
                         PDF
                       </a>
                     </Button>
+                    {version.hasPdf ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Delete generated PDF for ${version.name}`}
+                        onClick={() => setDeletePdfTarget(version)}
+                      >
+                        <Trash2 aria-hidden />
+                      </Button>
+                    ) : null}
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -281,6 +293,22 @@ export function VersionList({ versions }: { versions: VersionRow[] }) {
           if (!deleteTarget) return;
           const res = await run(deleteTarget.id, () => deleteVersionAction(deleteTarget.id));
           if (res.ok) setDeleteTarget(null);
+        }}
+      />
+
+      {/* delete generated PDF */}
+      <ConfirmDialog
+        open={Boolean(deletePdfTarget)}
+        onOpenChange={(open) => !open && setDeletePdfTarget(null)}
+        tone="danger"
+        title={`Delete the generated PDF for “${deletePdfTarget?.name ?? ''}”?`}
+        description="The version's content, edits and history are untouched — you can export a new PDF from it any time."
+        confirmLabel="Delete PDF"
+        loading={busyId === deletePdfTarget?.id}
+        onConfirm={async () => {
+          if (!deletePdfTarget) return;
+          const res = await run(deletePdfTarget.id, () => deleteGeneratedPdfAction(deletePdfTarget.id));
+          if (res.ok) setDeletePdfTarget(null);
         }}
       />
     </>

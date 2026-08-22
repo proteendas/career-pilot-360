@@ -228,7 +228,7 @@ export function PacketReviewView({ data }: { data: PacketReviewData }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_20rem]">
         {/* --------------------------------------------------------- main */}
         <div className="min-w-0 space-y-4">
           <Card>
@@ -338,7 +338,7 @@ export function PacketReviewView({ data }: { data: PacketReviewData }) {
 
         {/* ------------------------------------------------------ sidebar */}
         <aside className="space-y-4">
-          <Card className="lg:sticky lg:top-20">
+          <Card>
             <CardContent className="space-y-3 pt-5">
               <Button onClick={() => void copyAll()} variant="secondary" className="w-full">
                 <Copy aria-hidden />

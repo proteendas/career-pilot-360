@@ -50,7 +50,7 @@ export function ResumeEditor({
   const [template, setTemplate] = React.useState<ResumeTemplate>(
     (RESUME_TEMPLATES as readonly string[]).includes(initialTemplate)
       ? (initialTemplate as ResumeTemplate)
-      : 'modern',
+      : 'classic',
   );
   const [fontSize, setFontSize] = React.useState(10);
   const [margin, setMargin] = React.useState(52);
@@ -434,7 +434,7 @@ export function ResumeEditor({
 
       {/* ------------------------------------------------------------ sidebar */}
       <aside className="space-y-4">
-        <Card className="lg:sticky lg:top-20">
+        <Card>
           <CardContent className="pt-5">
             <div className="flex flex-col items-center gap-2">
               <ScoreRing score={report.overallScore} size={104} label="ATS" animate={false} />

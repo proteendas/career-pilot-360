@@ -20,6 +20,7 @@ import { aiAvailability } from '@/lib/ai/client';
 import {
   atsContextFromProfile,
   createVersion,
+  deleteGeneratedPdf,
   deleteVersion,
   duplicateVersion,
   exportVersionPdf,
@@ -28,6 +29,7 @@ import {
   getSuggestion,
   getVersion,
   listSuggestions,
+  moveSuggestionsToVersion,
   renameVersion,
   replaceSuggestions,
   restoreVersion,
@@ -37,8 +39,13 @@ import {
   updateVersionContent,
 } from '@/lib/resume/service';
 import { analyzeResume, type AtsReport } from '@/lib/resume/ats';
-import { applySuggestion, generateSuggestions, type Suggestion } from '@/lib/resume/suggestions';
-import { assertNoFabrication, resumeToPlainText, structuredResumeSchema } from '@/lib/resume/types';
+import { applySuggestion, generateSuggestions, rewriteSuggestionText, type Suggestion } from '@/lib/resume/suggestions';
+import {
+  assertNoFabrication,
+  isApplicableSuggestionPath,
+  resumeToPlainText,
+  structuredResumeSchema,
+} from '@/lib/resume/types';
 import { profileToProse } from '@/lib/profile/prose';
 import { RESUME_TEMPLATES } from '@/lib/resume/pdf';
 
@@ -273,6 +280,10 @@ export async function decideSuggestionAction(raw: unknown): Promise<ActionResult
       ...(decision === 'edit' ? { userEditedText: text } : {}),
       appliedToVersionId: newVersionId,
     });
+    // Carry the rest of this review session's suggestions (pending and
+    // already decided) forward, so the user isn't redirected into what looks
+    // like an empty list after handling just one.
+    await moveSuggestionsToVersion(user.id, versionId, newVersionId);
 
     await recordAudit({
       userId: user.id,
@@ -302,6 +313,49 @@ export async function decideSuggestionAction(raw: unknown): Promise<ActionResult
           : 'Applied to a new version.',
       data: { newVersionId, scoreBefore, scoreAfter },
     };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+/**
+ * Ask the model to rewrite the text behind one suggestion, addressing that
+ * suggestion's specific critique. Returns a draft for the user to review and
+ * edit further — it is never saved directly.
+ */
+export async function aiRewriteSuggestionAction(
+  suggestionId: string,
+): Promise<ActionResult<{ text: string }>> {
+  try {
+    const user = await requireUser();
+    await enforceRateLimit('aiTask', `rewrite:${user.id}`);
+
+    const suggestion = await getSuggestion(user.id, suggestionId);
+    if (!isApplicableSuggestionPath(suggestion.sectionPath)) {
+      return { ok: false, error: 'This suggestion has no specific text for the AI to rewrite.' };
+    }
+
+    const availability = await aiAvailability(user.id, 'resume_suggestions');
+    if (!availability.available) {
+      return { ok: false, error: availability.reason ?? 'No AI provider is configured.' };
+    }
+
+    const [profile, resume] = await Promise.all([
+      loadProfile(user.id),
+      getStructured(user.id, suggestion.resumeVersionId),
+    ]);
+
+    const result = await rewriteSuggestionText({
+      userId: user.id,
+      resume,
+      profileSummary: profileToProse(profile),
+      sectionPath: suggestion.sectionPath ?? '',
+      originalText: suggestion.originalText,
+      reason: suggestion.reason,
+    });
+
+    if (!result.ok) return { ok: false, error: result.error };
+    return { ok: true, data: { text: result.text } };
   } catch (err) {
     return toResult(err);
   }
@@ -371,6 +425,9 @@ export async function acceptAllSafeAction(versionId: string): Promise<ActionResu
         metadata: { batch: true, newVersionId },
       });
     }
+    // Suggestions that were not safe to auto-apply are still pending — carry
+    // them (and the ones just accepted) onto the new version.
+    await moveSuggestionsToVersion(user.id, versionId, newVersionId);
 
     revalidatePath('/resume');
     revalidatePath('/dashboard');
@@ -441,6 +498,19 @@ export async function deleteVersionAction(versionId: string): Promise<ActionResu
     revalidatePath('/resume');
     revalidatePath('/dashboard');
     return { ok: true, notice: 'Version deleted. Your original upload is untouched.' };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+/** Delete a version's generated PDF file without touching its content or history. */
+export async function deleteGeneratedPdfAction(versionId: string): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    await deleteGeneratedPdf(user.id, versionId);
+    revalidatePath('/resume');
+    revalidatePath(`/resume/${versionId}`);
+    return { ok: true, notice: 'Generated PDF deleted. Export again whenever you need it.' };
   } catch (err) {
     return toResult(err);
   }

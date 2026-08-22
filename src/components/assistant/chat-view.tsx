@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Bot, Search, Send, User as UserIcon } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/input';
@@ -152,11 +154,28 @@ function MessageBubble({ message }: { message: SentMessage }) {
       </span>
       <div
         className={cn(
-          'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
-          isUser ? 'bg-accent text-white' : 'bg-surface-2 text-ink-2',
+          'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed',
+          isUser ? 'bg-accent text-white whitespace-pre-wrap' : 'bg-surface-2 text-ink-2',
         )}
       >
-        {message.content}
+        {isUser ? (
+          message.content
+        ) : (
+          <div className="cp-prose-chat">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children }) => (
+                  <a href={href} target="_blank" rel="noreferrer noopener">
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
     </div>
   );

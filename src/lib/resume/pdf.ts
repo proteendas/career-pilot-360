@@ -14,9 +14,14 @@
  *  - real spaces between words (each line drawn as one string);
  *  - headings as plain bold text, not graphics;
  *  - page breaks between blocks, never mid-line.
+ *
+ * Real URLs (contact links, project/certification links, the Links section)
+ * are drawn as genuine clickable link annotations, not just visible text —
+ * see `Renderer.addLink` and `Renderer.inlineRow`.
  */
 import {
   PDFDocument,
+  PDFString,
   StandardFonts,
   rgb,
   type PDFFont,
@@ -25,40 +30,15 @@ import {
 } from 'pdf-lib';
 import { contentHash } from '@/lib/security';
 import type { StructuredResume } from './types';
+import { PAGE_SIZES, THEMES, type ResumeTemplate, type Theme } from './theme';
+import { splitMarkdownLink } from './markdown-link';
 
-export const RESUME_TEMPLATES = ['modern', 'minimal', 'technical', 'executive', 'ats_safe'] as const;
-export type ResumeTemplate = (typeof RESUME_TEMPLATES)[number];
-
-export const TEMPLATE_META: Record<
-  ResumeTemplate,
-  { label: string; description: string; atsNote: string }
-> = {
-  modern: {
-    label: 'Modern',
-    description: 'Sans-serif with a coloured accent rule under each section heading.',
-    atsNote: 'Single column, text-only. The accent is a drawn line, never an image.',
-  },
-  minimal: {
-    label: 'Minimal',
-    description: 'Generous whitespace, no rules, no colour. Quiet and highly legible.',
-    atsNote: 'The most conservative layout. Nothing but text and spacing.',
-  },
-  technical: {
-    label: 'Technical',
-    description: 'Compact, with a monospace treatment for technologies. Fits more per page.',
-    atsNote: 'Monospace is used only for technology lists, which parse as ordinary text.',
-  },
-  executive: {
-    label: 'Executive',
-    description: 'Serif headings, wider margins, a formal register.',
-    atsNote: 'Serif faces extract identically to sans. Single column throughout.',
-  },
-  ats_safe: {
-    label: 'ATS-safe',
-    description: 'Deliberately plain: one font, one size, capitalised headings, no colour.',
-    atsNote: 'The safest possible output. Use this when a posting warns about parsing.',
-  },
-};
+export {
+  RESUME_TEMPLATES,
+  TEMPLATE_META,
+  isResumeTemplate,
+  type ResumeTemplate,
+} from './theme';
 
 export interface PdfOptions {
   template?: ResumeTemplate;
@@ -66,7 +46,7 @@ export interface PdfOptions {
   margin?: number;
   fontSize?: number;
   lineSpacing?: number;
-  /** Hex accent, e.g. "#c96442". Ignored by minimal and ats_safe. */
+  /** Hex accent, e.g. "#c96442". Ignored by minimal, ats_safe and classic. */
   accentColor?: string;
   /** 'single' compresses spacing to try to fit one page. */
   pageMode?: 'single' | 'multi';
@@ -90,48 +70,6 @@ export interface PdfResult {
   truncated: boolean;
 }
 
-const A4 = { width: 595.28, height: 841.89 };
-
-interface Theme {
-  headingFont: 'sans-bold' | 'serif-bold';
-  bodyFont: 'sans' | 'serif';
-  monoForTech: boolean;
-  headingSize: number;
-  nameSize: number;
-  useAccent: boolean;
-  ruleUnderHeading: boolean;
-  uppercaseHeadings: boolean;
-  headingLetterSpacing: number;
-}
-
-const THEMES: Record<ResumeTemplate, Theme> = {
-  modern: {
-    headingFont: 'sans-bold', bodyFont: 'sans', monoForTech: false,
-    headingSize: 11, nameSize: 20, useAccent: true, ruleUnderHeading: true,
-    uppercaseHeadings: true, headingLetterSpacing: 0.6,
-  },
-  minimal: {
-    headingFont: 'sans-bold', bodyFont: 'sans', monoForTech: false,
-    headingSize: 10.5, nameSize: 18, useAccent: false, ruleUnderHeading: false,
-    uppercaseHeadings: true, headingLetterSpacing: 1.1,
-  },
-  technical: {
-    headingFont: 'sans-bold', bodyFont: 'sans', monoForTech: true,
-    headingSize: 10.5, nameSize: 17, useAccent: true, ruleUnderHeading: true,
-    uppercaseHeadings: true, headingLetterSpacing: 0.5,
-  },
-  executive: {
-    headingFont: 'serif-bold', bodyFont: 'serif', monoForTech: false,
-    headingSize: 11.5, nameSize: 21, useAccent: false, ruleUnderHeading: true,
-    uppercaseHeadings: false, headingLetterSpacing: 0,
-  },
-  ats_safe: {
-    headingFont: 'sans-bold', bodyFont: 'sans', monoForTech: false,
-    headingSize: 11, nameSize: 16, useAccent: false, ruleUnderHeading: false,
-    uppercaseHeadings: true, headingLetterSpacing: 0,
-  },
-};
-
 function parseHex(hex: string | undefined, fallback: RGB): RGB {
   const value = (hex ?? '').trim().replace('#', '');
   if (!/^[0-9a-f]{6}$/i.test(value)) return fallback;
@@ -154,14 +92,13 @@ function toWinAnsi(value: string): string {
     .replace(/[–—‒―]/g, '-')
     .replace(/…/g, '...')
     .replace(/[•‣◦⁃∙]/g, '-')
-    .replace(/ /g, ' ')
+    .replace(/ /g, ' ')
     .replace(/[‐‑]/g, '-')
     .replace(/₹/g, 'INR ')
     .replace(/→/g, '->')
     .replace(/×/g, 'x')
     // Anything still outside the printable Latin-1 range is dropped rather than
     // allowed to throw mid-render.
-    // eslint-disable-next-line no-control-regex
     .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '');
 }
 
@@ -202,11 +139,20 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   return lines;
 }
 
+interface Segment {
+  text: string;
+  url?: string;
+  font?: PDFFont;
+  color?: RGB;
+}
+
 /** Renderer holding cursor state and handling page breaks. */
 class Renderer {
   private page: PDFPage;
   private y: number;
   readonly pages: PDFPage[] = [];
+  private readonly pageWidth: number;
+  private readonly pageHeight: number;
 
   constructor(
     private readonly doc: PDFDocument,
@@ -222,13 +168,16 @@ class Renderer {
     private readonly ink: RGB,
     private readonly muted: RGB,
   ) {
-    this.page = doc.addPage([A4.width, A4.height]);
+    const size = PAGE_SIZES[theme.pageSize];
+    this.pageWidth = size.width;
+    this.pageHeight = size.height;
+    this.page = doc.addPage([this.pageWidth, this.pageHeight]);
     this.pages.push(this.page);
-    this.y = A4.height - margin;
+    this.y = this.pageHeight - margin;
   }
 
   get contentWidth(): number {
-    return A4.width - this.margin * 2;
+    return this.pageWidth - this.margin * 2;
   }
 
   get remaining(): number {
@@ -241,9 +190,9 @@ class Renderer {
 
   /** Start a new page. Called only between blocks, never mid-line. */
   newPage(): void {
-    this.page = this.doc.addPage([A4.width, A4.height]);
+    this.page = this.doc.addPage([this.pageWidth, this.pageHeight]);
     this.pages.push(this.page);
-    this.y = A4.height - this.margin;
+    this.y = this.pageHeight - this.margin;
   }
 
   ensure(space: number): void {
@@ -252,6 +201,25 @@ class Renderer {
 
   gap(points: number): void {
     this.y -= points;
+  }
+
+  /**
+   * Register a real clickable link over a rectangular region of the current
+   * page. This is metadata only — it draws nothing — so it never affects the
+   * plain-text ATS extraction of the page.
+   */
+  addLink(x: number, y: number, width: number, height: number, url: string): void {
+    const safeUrl = (url ?? '').trim();
+    if (!safeUrl) return;
+    const annotDict = this.doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [x, y, x + width, y + height],
+      Border: [0, 0, 0],
+      A: { Type: 'Action', S: 'URI', URI: PDFString.of(safeUrl) },
+    });
+    const ref = this.doc.context.register(annotDict);
+    this.page.node.addAnnot(ref);
   }
 
   /** Draw wrapped text. Returns the height consumed. */
@@ -284,6 +252,60 @@ class Renderer {
       });
       this.y -= this.lineHeight(size);
     }
+  }
+
+  /**
+   * One or more short segments on a single line — "A | B | C" — optionally
+   * centered, with any segment carrying a URL drawn as a real hyperlink
+   * (underlined so it reads as clickable) instead of plain text. Used for the
+   * contact/links header row and any field that is itself a URL.
+   */
+  inlineRow(
+    segments: Segment[],
+    opts: { size?: number; separator?: string; align?: 'left' | 'center'; color?: RGB } = {},
+  ): void {
+    const parts = segments.filter((s) => s.text?.trim());
+    if (parts.length === 0) return;
+
+    const size = opts.size ?? this.baseSize;
+    const separator = opts.separator ?? '   |   ';
+    const color = opts.color ?? this.muted;
+    const defaultFont = this.fonts[this.theme.bodyFont === 'serif' ? 'serif' : 'sans'];
+    const sepWidth = defaultFont.widthOfTextAtSize(separator, size);
+
+    const widths = parts.map((p) => (p.font ?? defaultFont).widthOfTextAtSize(toWinAnsi(p.text), size));
+    const totalWidth = widths.reduce((a, b) => a + b, 0) + sepWidth * (parts.length - 1);
+
+    this.ensure(this.lineHeight(size));
+    const y = this.y - size;
+    let x =
+      opts.align === 'center'
+        ? this.margin + Math.max(0, (this.contentWidth - totalWidth) / 2)
+        : this.margin;
+
+    parts.forEach((p, i) => {
+      const font = p.font ?? defaultFont;
+      const safe = toWinAnsi(p.text);
+      const w = widths[i]!;
+      const segColor = p.color ?? color;
+      this.page.drawText(safe, { x, y, size, font, color: segColor });
+      if (p.url) {
+        this.page.drawLine({
+          start: { x, y: y - 1 },
+          end: { x: x + w, y: y - 1 },
+          thickness: 0.5,
+          color: segColor,
+        });
+        this.addLink(x, y - 2, w, size + 3, p.url);
+      }
+      x += w;
+      if (i < parts.length - 1) {
+        this.page.drawText(separator, { x, y, size, font: defaultFont, color });
+        x += sepWidth;
+      }
+    });
+
+    this.y -= this.lineHeight(size);
   }
 
   /** A bullet line with a hanging indent, so wrapped lines align. */
@@ -340,7 +362,7 @@ class Renderer {
       this.y -= 2;
       this.page.drawLine({
         start: { x: this.margin, y: this.y },
-        end: { x: A4.width - this.margin, y: this.y },
+        end: { x: this.pageWidth - this.margin, y: this.y },
         thickness: 0.75,
         color: this.theme.useAccent ? this.accent : this.muted,
       });
@@ -358,7 +380,7 @@ class Renderer {
     if (!safe) return;
     const width = font.widthOfTextAtSize(safe, size);
     this.page.drawText(safe, {
-      x: A4.width - this.margin - width,
+      x: this.pageWidth - this.margin - width,
       y: this.y - size + (opts.yOffset ?? 0),
       size,
       font,
@@ -397,18 +419,39 @@ function formatRange(start: string, end: string, current: boolean): string {
   return start || to || '';
 }
 
+/**
+ * A "title - detail" line that may itself carry a link (e.g. a certificate's
+ * verification URL, or a bare markdown link the parser recovered from an
+ * uploaded document's hyperlink).
+ */
+function titleDetailSegments(title: string, detail: string, url: string): Segment[] {
+  const titleLink = splitMarkdownLink(title);
+  const segments: Segment[] = [];
+  if (titleLink) segments.push({ text: titleLink.label, url: titleLink.url });
+  else if (title) segments.push({ text: title });
+  if (detail) segments.push({ text: detail });
+  if (url && !titleLink) segments.push({ text: 'Verify', url });
+  return segments;
+}
+
 /** Generate the PDF. Pure apart from the pdf-lib document it builds. */
 export async function generateResumePdf(
   resume: StructuredResume,
   options: PdfOptions = {},
 ): Promise<PdfResult> {
-  const template = options.template ?? 'modern';
+  const template = options.template ?? 'classic';
   const theme = THEMES[template];
   const single = options.pageMode === 'single';
 
-  const margin = Math.max(28, Math.min(80, options.margin ?? (template === 'executive' ? 62 : 52)));
-  const baseSize = Math.max(8, Math.min(12, options.fontSize ?? (single ? 9.5 : 10)));
-  const lineSpacing = Math.max(1.05, Math.min(1.8, options.lineSpacing ?? (single ? 1.24 : 1.36)));
+  const margin = Math.max(28, Math.min(80, options.margin ?? theme.defaultMargin));
+  const baseSize = Math.max(
+    8,
+    Math.min(12, options.fontSize ?? (single ? theme.defaultFontSize - 0.5 : theme.defaultFontSize)),
+  );
+  const lineSpacing = Math.max(
+    1.05,
+    Math.min(1.8, options.lineSpacing ?? (single ? theme.defaultLineSpacing - 0.12 : theme.defaultLineSpacing)),
+  );
 
   const doc = await PDFDocument.create();
   doc.setTitle(`${resume.contact.fullName || 'Resume'} - Resume`);
@@ -434,25 +477,28 @@ export async function generateResumePdf(
 
   const r = new Renderer(doc, fonts, margin, baseSize, lineSpacing, theme, accent, ink, muted);
   let truncated = false;
+  const align = theme.centerHeader ? 'center' : 'left';
 
   /* ------------------------------------------------------------- header -- */
   const c = resume.contact;
   if (c.fullName) {
-    r.text(c.fullName, { font: r.boldFont, size: theme.nameSize, color: ink });
+    r.inlineRow([{ text: c.fullName, font: r.boldFont, color: ink }], { size: theme.nameSize, align });
   }
   if (c.headline) {
-    r.text(c.headline, { size: baseSize + 0.5, color: muted });
+    r.inlineRow([{ text: c.headline, color: muted }], { size: baseSize + 0.5, align });
   }
 
-  const contactLine = [c.email, c.phone, c.location].filter(Boolean).join('  |  ');
-  if (contactLine) {
-    r.gap(2);
-    r.text(contactLine, { size: baseSize - 0.5, color: muted });
-  }
-  const links = [c.linkedinUrl, c.githubUrl, c.portfolioUrl, c.websiteUrl].filter(Boolean).join('  |  ');
-  if (links) {
-    r.text(links, { size: baseSize - 0.5, color: muted });
-  }
+  r.gap(2);
+  r.inlineRow(
+    [{ text: c.email }, { text: c.phone }, { text: c.location }],
+    { size: baseSize - 0.5, align },
+  );
+  const linkSegments: Segment[] = [];
+  if (c.linkedinUrl) linkSegments.push({ text: 'LinkedIn', url: c.linkedinUrl });
+  if (c.githubUrl) linkSegments.push({ text: 'GitHub', url: c.githubUrl });
+  if (c.portfolioUrl) linkSegments.push({ text: 'Portfolio', url: c.portfolioUrl });
+  if (c.websiteUrl) linkSegments.push({ text: 'Website', url: c.websiteUrl });
+  r.inlineRow(linkSegments, { size: baseSize - 0.5, align });
 
   /* ------------------------------------------------------------ summary -- */
   if (options.includeSummary !== false && resume.summary) {
@@ -487,7 +533,12 @@ export async function generateResumePdf(
 
       for (const bullet of exp.bullets) {
         if (!bullet.text) continue;
-        r.bullet(bullet.text, { size: baseSize });
+        const link = splitMarkdownLink(bullet.text);
+        if (link) {
+          r.bullet(link.label, { size: baseSize });
+        } else {
+          r.bullet(bullet.text, { size: baseSize });
+        }
       }
 
       if (exp.technologies.length > 0) {
@@ -516,7 +567,9 @@ export async function generateResumePdf(
           maxWidth: dates ? r.widthMinus(dates, r.italicFont, baseSize - 0.5) : undefined,
         });
       }
-      if (project.url) r.text(project.url, { size: baseSize - 1, color: muted });
+      if (project.url) {
+        r.inlineRow([{ text: project.url, url: project.url }], { size: baseSize - 1, color: muted });
+      }
       if (project.description) r.text(project.description, { size: baseSize });
       for (const bullet of project.bullets) {
         if (bullet.text) r.bullet(bullet.text, { size: baseSize });
@@ -537,7 +590,7 @@ export async function generateResumePdf(
     for (const group of resume.skills) {
       if (group.skills.length === 0) continue;
       const line = group.category ? `${group.category}: ${group.skills.join(', ')}` : group.skills.join(', ');
-      r.text(line, { size: baseSize, ...(theme.monoForTech ? {} : {}) });
+      r.text(line, { size: baseSize });
     }
   }
 
@@ -562,13 +615,28 @@ export async function generateResumePdf(
     }
   }
 
+  /* ----------------------------------------------------- certifications -- */
+  if (options.includeCertifications !== false && resume.certifications.length > 0) {
+    r.heading('Certifications');
+    for (const cert of resume.certifications) {
+      if (!cert.name) continue;
+      if (cert.date) r.rightText(cert.date, { size: baseSize - 0.5, font: r.italicFont });
+      const nameLink = splitMarkdownLink(cert.name);
+      const nameSegments: Segment[] = nameLink
+        ? [{ text: nameLink.label, url: nameLink.url, font: r.boldFont, color: ink }]
+        : [{ text: cert.name, font: r.boldFont, color: ink }];
+      if (cert.issuer) nameSegments.push({ text: `- ${cert.issuer}`, font: r.sansFont, color: ink });
+      r.inlineRow(nameSegments, { size: baseSize, separator: ' ' });
+
+      const detailBits: Segment[] = [];
+      if (cert.credentialId) detailBits.push({ text: `Credential ID: ${cert.credentialId}` });
+      if (cert.url && !nameLink) detailBits.push({ text: 'Verify credential', url: cert.url });
+      if (detailBits.length) r.inlineRow(detailBits, { size: baseSize - 1, separator: '   |   ' });
+    }
+  }
+
   /* ----------------------------------------------------- simple sections -- */
-  const simpleSections: [boolean, string, { title: string; detail: string; date: string }[]][] = [
-    [
-      options.includeCertifications !== false,
-      'Certifications',
-      resume.certifications.map((x) => ({ title: x.name, detail: x.issuer, date: x.date })),
-    ],
+  const simpleSections: [boolean, string, { title: string; detail: string; date: string; url?: string }[]][] = [
     [
       options.includeAwards !== false,
       'Awards',
@@ -592,11 +660,8 @@ export async function generateResumePdf(
     r.heading(heading);
     for (const row of rows) {
       if (row.date) r.rightText(row.date, { size: baseSize - 0.5, font: r.italicFont });
-      const line = [row.title, row.detail].filter(Boolean).join(' - ');
-      r.text(line, {
-        size: baseSize,
-        maxWidth: row.date ? r.widthMinus(row.date, r.italicFont, baseSize - 0.5) : undefined,
-      });
+      const segments = titleDetailSegments(row.title, row.detail, row.url ?? '');
+      r.inlineRow(segments, { size: baseSize, separator: ' - ' });
     }
   }
 
@@ -608,7 +673,10 @@ export async function generateResumePdf(
   if (options.includeLinks !== false && resume.links.length > 0) {
     r.heading('Links');
     for (const link of resume.links) {
-      r.text([link.label, link.url].filter(Boolean).join(': '), { size: baseSize - 0.5 });
+      r.inlineRow(
+        [{ text: link.label || link.url, url: link.url }],
+        { size: baseSize - 0.5, separator: ': ' },
+      );
     }
   }
 
@@ -640,8 +708,4 @@ export async function generateResumePdf(
     template,
     truncated,
   };
-}
-
-export function isResumeTemplate(value: string): value is ResumeTemplate {
-  return (RESUME_TEMPLATES as readonly string[]).includes(value);
 }

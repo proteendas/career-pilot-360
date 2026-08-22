@@ -25,8 +25,14 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { DiffViewer } from '@/components/ui/diff-viewer';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { acceptAllSafeAction, analyzeResumeAction, decideSuggestionAction } from '@/server/actions/resume';
+import {
+  acceptAllSafeAction,
+  aiRewriteSuggestionAction,
+  analyzeResumeAction,
+  decideSuggestionAction,
+} from '@/server/actions/resume';
 import { diffStats } from '@/lib/diff';
+import { isApplicableSuggestionPath } from '@/lib/resume/types';
 
 export interface SuggestionRow {
   id: string;
@@ -60,17 +66,33 @@ function SuggestionCard({
   suggestion,
   onDecide,
   busy,
+  aiConfigured,
 }: {
   suggestion: SuggestionRow;
   onDecide: (id: string, decision: 'accept' | 'reject' | 'edit', text?: string) => Promise<void>;
   busy: boolean;
+  aiConfigured: boolean;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(suggestion.suggestedText || suggestion.originalText);
+  const [aiRewriting, setAiRewriting] = React.useState(false);
 
   const hasReplacement = Boolean(suggestion.suggestedText);
+  const canEdit = hasReplacement || isApplicableSuggestionPath(suggestion.sectionPath);
   const stats = hasReplacement ? diffStats(suggestion.originalText, suggestion.suggestedText) : null;
   const isAi = suggestion.evidence?.origin === 'ai';
+
+  async function aiRewrite() {
+    setAiRewriting(true);
+    const res = await aiRewriteSuggestionAction(suggestion.id);
+    setAiRewriting(false);
+    if (!res.ok) {
+      toast.error(res.error ?? 'The AI rewrite failed.');
+      return;
+    }
+    setDraft(res.data?.text ?? '');
+    toast.success('Draft rewritten — review it before saving.');
+  }
 
   return (
     <li className="rounded-xl border border-line bg-surface p-4 shadow-soft">
@@ -99,33 +121,13 @@ function SuggestionCard({
       </div>
 
       {hasReplacement ? (
-        <>
-          <DiffViewer
-            before={suggestion.originalText}
-            after={editing ? draft : suggestion.suggestedText}
-            mode="split"
-            beforeLabel="Current"
-            afterLabel={editing ? 'Your edit' : 'Suggested'}
-          />
-          {editing ? (
-            <div className="mt-3">
-              <label htmlFor={`edit-${suggestion.id}`} className="mb-1.5 block text-xs font-medium text-ink-2">
-                Your replacement text
-              </label>
-              <Textarea
-                id={`edit-${suggestion.id}`}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={3}
-                maxLength={1000}
-                autoFocus
-              />
-              <p className="mt-1 text-[11px] text-ink-4">
-                Figures that do not appear in your resume or profile will be refused when you save.
-              </p>
-            </div>
-          ) : null}
-        </>
+        <DiffViewer
+          before={suggestion.originalText}
+          after={editing ? draft : suggestion.suggestedText}
+          mode="split"
+          beforeLabel="Current"
+          afterLabel={editing ? 'Your edit' : 'Suggested'}
+        />
       ) : (
         <>
           {suggestion.originalText ? (
@@ -133,14 +135,51 @@ function SuggestionCard({
               {suggestion.originalText}
             </p>
           ) : null}
-          <Alert tone="info" className="mt-3" icon={<Info className="size-4" />}>
-            <p className="text-[13px] leading-relaxed">
-              This is guidance rather than a replacement — there is no text to apply automatically, because supplying it
-              would mean inventing information.
-            </p>
-          </Alert>
+          {!editing ? (
+            <Alert tone="info" className="mt-3" icon={<Info className="size-4" />}>
+              <p className="text-[13px] leading-relaxed">
+                {canEdit
+                  ? 'There is no suggested replacement — write your own if you know what should go here instead.'
+                  : 'This is guidance rather than a replacement — there is no text to apply automatically, because ' +
+                    'supplying it would mean inventing information.'}
+              </p>
+            </Alert>
+          ) : null}
         </>
       )}
+
+      {editing ? (
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label htmlFor={`edit-${suggestion.id}`} className="block text-xs font-medium text-ink-2">
+              Your replacement text
+            </label>
+            {aiConfigured ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void aiRewrite()}
+                loading={aiRewriting}
+                disabled={busy}
+              >
+                <Sparkles aria-hidden />
+                AI rewrite
+              </Button>
+            ) : null}
+          </div>
+          <Textarea
+            id={`edit-${suggestion.id}`}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            maxLength={1000}
+            autoFocus
+          />
+          <p className="mt-1 text-[11px] text-ink-4">
+            Figures that do not appear in your resume or profile will be refused when you save.
+          </p>
+        </div>
+      ) : null}
 
       <p className="mt-3 text-[13px] leading-relaxed text-ink-3">{suggestion.reason}</p>
 
@@ -169,21 +208,21 @@ function SuggestionCard({
             <Button
               size="sm"
               onClick={() => void onDecide(suggestion.id, 'edit', draft)}
-              disabled={busy || !draft.trim() || draft.trim() === suggestion.originalText.trim()}
+              disabled={busy || aiRewriting || !draft.trim() || draft.trim() === suggestion.originalText.trim()}
             >
               <Check aria-hidden />
               Save my version
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy || aiRewriting}>
               Cancel edit
             </Button>
           </>
-        ) : (
+        ) : canEdit ? (
           <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={busy}>
             <Pencil aria-hidden />
             {hasReplacement ? 'Edit' : 'Write my own'}
           </Button>
-        )}
+        ) : null}
 
         <Button size="sm" variant="ghost" onClick={() => void onDecide(suggestion.id, 'reject')} disabled={busy}>
           <X aria-hidden />
@@ -338,7 +377,13 @@ export function SuggestionsView({
           ) : (
             <ul className="space-y-3">
               {pending.map((s) => (
-                <SuggestionCard key={s.id} suggestion={s} onDecide={decide} busy={busyId === s.id} />
+                <SuggestionCard
+                  key={s.id}
+                  suggestion={s}
+                  onDecide={decide}
+                  busy={busyId === s.id}
+                  aiConfigured={aiConfigured}
+                />
               ))}
             </ul>
           )}

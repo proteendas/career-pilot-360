@@ -146,6 +146,20 @@ export type ResumeCertification = z.infer<typeof certificationSchema>;
 export type ResumeSkillGroup = z.infer<typeof skillGroupSchema>;
 export type ResumeBullet = z.infer<typeof bulletSchema>;
 
+/** Matches `experience[n].bullets[n]` and `projects[n].bullets[n]` section paths. */
+export const BULLET_SECTION_PATH_RE = /^(experience|projects)\[(\d+)\]\.bullets\[(\d+)\]$/;
+
+/**
+ * Whether a suggestion's `sectionPath` names a concrete field that a
+ * replacement string can actually be written into. Paths like `contact`,
+ * `skills` or `document` are guidance for the user to act on themselves —
+ * there is nowhere for free text against them to go.
+ */
+export function isApplicableSuggestionPath(sectionPath: string | null | undefined): boolean {
+  if (!sectionPath) return false;
+  return sectionPath === 'summary' || BULLET_SECTION_PATH_RE.test(sectionPath);
+}
+
 export function emptyResume(): StructuredResume {
   return structuredResumeSchema.parse({});
 }

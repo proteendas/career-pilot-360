@@ -83,7 +83,7 @@ export function DraftDetailView({ data }: { data: DraftDetailData }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_18rem]">
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_18rem]">
         <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
@@ -145,7 +145,7 @@ export function DraftDetailView({ data }: { data: DraftDetailData }) {
         </div>
 
         <aside className="space-y-4">
-          <Card className="lg:sticky lg:top-20">
+          <Card>
             <CardContent className="space-y-3 pt-5">
               {!hasEmail ? (
                 <Alert tone="warning">Add an email address to this contact before sending.</Alert>

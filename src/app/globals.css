@@ -200,6 +200,82 @@
     overflow-wrap: anywhere;
     line-height: 1.7;
   }
+
+  /* Rendered markdown inside a compact chat bubble. */
+  .cp-prose-chat {
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+  }
+  .cp-prose-chat > :first-child {
+    margin-top: 0;
+  }
+  .cp-prose-chat > :last-child {
+    margin-bottom: 0;
+  }
+  .cp-prose-chat p {
+    margin: 0.5em 0;
+  }
+  .cp-prose-chat strong {
+    font-weight: 600;
+    color: inherit;
+  }
+  .cp-prose-chat ul,
+  .cp-prose-chat ol {
+    margin: 0.5em 0;
+    padding-left: 1.25em;
+  }
+  .cp-prose-chat ul {
+    list-style-type: disc;
+  }
+  .cp-prose-chat ol {
+    list-style-type: decimal;
+  }
+  .cp-prose-chat li {
+    margin: 0.2em 0;
+  }
+  .cp-prose-chat li > p {
+    margin: 0;
+  }
+  .cp-prose-chat a {
+    color: var(--cp-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .cp-prose-chat code {
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    border-radius: 0.3em;
+    padding: 0.1em 0.35em;
+    font-size: 0.9em;
+  }
+  .cp-prose-chat pre {
+    margin: 0.5em 0;
+    padding: 0.6em 0.75em;
+    border-radius: 0.5em;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    overflow-x: auto;
+  }
+  .cp-prose-chat pre code {
+    background: none;
+    padding: 0;
+  }
+  .cp-prose-chat blockquote {
+    margin: 0.5em 0;
+    padding-left: 0.75em;
+    border-left: 2px solid currentColor;
+    opacity: 0.85;
+  }
+  .cp-prose-chat table {
+    width: 100%;
+    margin: 0.5em 0;
+    border-collapse: collapse;
+    font-size: 0.9em;
+  }
+  .cp-prose-chat th,
+  .cp-prose-chat td {
+    border: 1px solid var(--cp-line);
+    padding: 0.3em 0.5em;
+    text-align: left;
+  }
 }
 
 @utility sr-only-focusable {

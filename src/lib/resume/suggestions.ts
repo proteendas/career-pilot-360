@@ -20,6 +20,7 @@
 import { z } from 'zod';
 import {
   allBullets,
+  BULLET_SECTION_PATH_RE,
   checkGrounding,
   resumeToPlainText,
   type StructuredResume,
@@ -450,6 +451,94 @@ export async function aiSuggestions(ctx: AiSuggestionContext): Promise<{
   }
 }
 
+const bulletRewriteSchema = z.object({
+  suggestedText: z.string().max(1000),
+});
+
+export interface RewriteTextContext {
+  userId: string;
+  resume: StructuredResume;
+  profileSummary: string;
+  sectionPath: string;
+  originalText: string;
+  reason: string;
+}
+
+/**
+ * Ask the model to rewrite ONE piece of text (a bullet or the summary) to
+ * address a specific critique — used by the "AI rewrite" action on a single
+ * suggestion, as opposed to `aiSuggestions`' whole-resume pass.
+ */
+export async function rewriteSuggestionText(
+  ctx: RewriteTextContext,
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const resumeText = resumeToPlainText(ctx.resume);
+  const corpus = `${resumeText}\n\n${ctx.profileSummary}`;
+
+  const instructions = [
+    SAFETY_PREAMBLE,
+    '',
+    'TASK',
+    'Rewrite ONE resume bullet (or summary line) to address the specific critique given, without changing what it claims.',
+    '',
+    'Rules:',
+    '- Keep every fact identical. You may reorder, tighten and choose stronger verbs.',
+    '- Do NOT add any number, percentage, currency amount, user count, team size or duration that is not already in the source material.',
+    '- Do NOT add technologies, employers, titles or outcomes that are not already stated.',
+    '- If the critique asks for information you do not have (e.g. a missing metric), improve the wording as best you can WITHOUT inventing the missing figure.',
+    '- Return only the rewritten text, nothing else.',
+  ].join('\n');
+
+  const userContent = [
+    'SOURCE MATERIAL — the only facts you may use:',
+    '',
+    fenceUntrusted('candidate_resume', budgetText(resumeText, 12_000)),
+    '',
+    fenceUntrusted('candidate_profile', budgetText(ctx.profileSummary, 4_000)),
+    '',
+    'TEXT TO REWRITE:',
+    fenceUntrusted('original_text', ctx.originalText || '(empty — write a first draft that fits the critique)'),
+    '',
+    'CRITIQUE TO ADDRESS:',
+    fenceUntrusted('critique', ctx.reason),
+  ].join('\n');
+
+  try {
+    const res = await generateObject({
+      userId: ctx.userId,
+      task: 'resume_suggestions',
+      schema: bulletRewriteSchema,
+      schemaName: 'bullet_rewrite',
+      schemaDescription: 'A single grounded rewrite of one resume bullet or summary line.',
+      temperature: 0.3,
+      maxOutputTokens: 600,
+      messages: [
+        { role: 'system', content: instructions },
+        { role: 'user', content: userContent },
+      ],
+    });
+
+    const suggested = res.value.suggestedText.trim();
+    if (!suggested) return { ok: false, error: 'The AI did not return a rewrite.' };
+
+    // Same gate as the whole-resume pass: a figure the user never supplied is
+    // refused, not shown with a warning.
+    const finding = checkGrounding(suggested, corpus, ctx.sectionPath);
+    if (finding) {
+      return {
+        ok: false,
+        error:
+          `That rewrite introduced figures not present in your resume or profile (${finding.unsupported.join(', ')}). ` +
+          'Add the underlying detail to your profile first, or try again.',
+      };
+    }
+
+    return { ok: true, text: suggested };
+  } catch (err) {
+    return { ok: false, error: err instanceof AiError ? err.message : 'The AI rewrite failed.' };
+  }
+}
+
 /**
  * Full suggestion pass: deterministic always, AI when available.
  * Never throws — a missing or failing provider simply yields the
@@ -492,7 +581,7 @@ export function applySuggestion(
   if (!text) return { resume, applied: false };
 
   const next: StructuredResume = structuredClone(resume);
-  const match = suggestion.sectionPath.match(/^(experience|projects)\[(\d+)\]\.bullets\[(\d+)\]$/);
+  const match = suggestion.sectionPath.match(BULLET_SECTION_PATH_RE);
 
   if (match) {
     const [, section, ownerIndexRaw, bulletIndexRaw] = match as unknown as [string, 'experience' | 'projects', string, string];

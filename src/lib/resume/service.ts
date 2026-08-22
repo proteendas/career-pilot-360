@@ -194,7 +194,7 @@ export async function uploadResume(
     sourceResumeId: documentId,
     parentVersionId: null,
     isDefault: isFirst,
-    template: 'modern',
+    template: 'classic',
   });
 
   // 5. Score it immediately: the user should land on a result, not a blank page.
@@ -248,7 +248,7 @@ export async function createVersion(userId: string, input: CreateVersionInput): 
       jobId: input.jobId ?? null,
       isDefault: input.isDefault ?? false,
       isTailored: input.isTailored ?? false,
-      template: input.template ?? 'modern',
+      template: input.template ?? 'classic',
       templateOptions: input.templateOptions ?? {},
     })
     .returning({ id: resumeVersions.id });
@@ -601,7 +601,7 @@ export async function exportVersionPdf(
   const storedOptions = (version.templateOptions ?? {}) as PdfOptions;
   const template: ResumeTemplate = isResumeTemplate(options.template ?? version.template)
     ? ((options.template ?? version.template) as ResumeTemplate)
-    : 'modern';
+    : 'classic';
 
   const pdf = await generateResumePdf(resume, { ...storedOptions, ...options, template });
 
@@ -685,6 +685,31 @@ export function slugify(value: string): string {
       .replace(/^-+|-+$/g, '')
       .slice(0, 60) || 'resume'
   );
+}
+
+/**
+ * Delete a version's generated PDF — the stored file and the version's
+ * pointer to it — without touching the version's content, history or
+ * suggestions. A later export regenerates it on demand.
+ */
+export async function deleteGeneratedPdf(userId: string, versionId: string): Promise<void> {
+  const version = await getVersion(userId, versionId);
+  if (!version.pdfBlobPath) return;
+
+  await getStorage().remove(version.pdfBlobPath).catch(() => undefined);
+
+  await getDb()
+    .update(resumeVersions)
+    .set({ pdfBlobPath: null, pdfBlobUrl: null, updatedAt: new Date() })
+    .where(and(eq(resumeVersions.userId, userId), eq(resumeVersions.id, versionId)));
+
+  await recordAudit({
+    userId,
+    action: 'resume.pdf_deleted',
+    entityType: 'resume_version',
+    entityId: versionId,
+    beforeSummary: version.name,
+  });
 }
 
 /* -------------------------------------------------------------- suggestions */
@@ -772,4 +797,27 @@ export async function setSuggestionStatus(
       updatedAt: new Date(),
     })
     .where(and(eq(resumeSuggestions.userId, userId), eq(resumeSuggestions.id, suggestionId)));
+}
+
+/**
+ * Carry every suggestion (pending or already decided) forward onto the new
+ * version created by accepting/editing one of them.
+ *
+ * Suggestions are generated once per analysis but a review session applies
+ * them one at a time, each creating a new version. Without this, every
+ * suggestion still stays attached to the OLD version: the moment the user is
+ * redirected to the version they just created, the rest of the list — which
+ * is still perfectly valid, since the sectionPath indices this suggestion
+ * didn't touch are unchanged — appears to have vanished.
+ */
+export async function moveSuggestionsToVersion(
+  userId: string,
+  fromVersionId: string,
+  toVersionId: string,
+): Promise<void> {
+  if (fromVersionId === toVersionId) return;
+  await getDb()
+    .update(resumeSuggestions)
+    .set({ resumeVersionId: toVersionId, updatedAt: new Date() })
+    .where(and(eq(resumeSuggestions.userId, userId), eq(resumeSuggestions.resumeVersionId, fromVersionId)));
 }
