@@ -8,7 +8,7 @@
  * persisted, so the conversation is a complete, auditable record of what was
  * looked up to produce an answer.
  */
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { conversations, getDb, messages, type Conversation, type Message } from '@/lib/db';
 import { NotFoundError } from '@/lib/db/tenant';
 import { generateText } from '@/lib/ai/client';
@@ -26,6 +26,37 @@ export async function createConversation(userId: string, title = 'New conversati
 
 export async function listConversations(userId: string): Promise<Conversation[]> {
   return getDb().select().from(conversations).where(eq(conversations.userId, userId)).orderBy(desc(conversations.updatedAt));
+}
+
+export interface ConversationSummary extends Conversation {
+  /** The first thing the user asked, for a picker — every conversation's `title` is the same generic default. */
+  preview: string | null;
+}
+
+/** Every past conversation, most recently active first, with a snippet to tell them apart in a history picker. */
+export async function listConversationsWithPreview(userId: string): Promise<ConversationSummary[]> {
+  const convos = await listConversations(userId);
+  if (convos.length === 0) return [];
+
+  const ids = convos.map((c) => c.id);
+  const firstUserMessages = await getDb()
+    .select({ conversationId: messages.conversationId, content: messages.content })
+    .from(messages)
+    .where(and(eq(messages.userId, userId), inArray(messages.conversationId, ids), eq(messages.role, 'user')))
+    .orderBy(asc(messages.createdAt));
+
+  const previewByConversation = new Map<string, string>();
+  for (const m of firstUserMessages) {
+    if (!previewByConversation.has(m.conversationId)) previewByConversation.set(m.conversationId, m.content);
+  }
+
+  return convos.map((c) => ({ ...c, preview: previewByConversation.get(c.id) ?? null }));
+}
+
+/** Delete a conversation and every message in it (cascades at the DB level). */
+export async function deleteConversation(userId: string, conversationId: string): Promise<void> {
+  await getConversation(userId, conversationId);
+  await getDb().delete(conversations).where(and(eq(conversations.userId, userId), eq(conversations.id, conversationId)));
 }
 
 export async function getConversation(userId: string, conversationId: string): Promise<Conversation> {

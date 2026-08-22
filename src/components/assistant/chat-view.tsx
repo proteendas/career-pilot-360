@@ -2,15 +2,28 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Bot, Search, Send, User as UserIcon } from 'lucide-react';
+import { Bot, Check, History, Search, Send, Trash2, User as UserIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { sendMessageAction, startConversationAction, type SentMessage } from '@/server/actions/assistant';
-import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  deleteConversationAction,
+  getConversationMessagesAction,
+  sendMessageAction,
+  startConversationAction,
+  type SentMessage,
+} from '@/server/actions/assistant';
+import { cn, relativeTime } from '@/lib/utils';
+
+export interface ConversationSummary {
+  id: string;
+  preview: string | null;
+  updatedAt: string;
+}
 
 const TOOL_LABELS: Record<string, string> = {
   get_dashboard_summary: 'Checked your dashboard stats',
@@ -29,15 +42,21 @@ const SUGGESTIONS = [
 export function ChatView({
   conversationId,
   initialMessages,
+  conversationHistory,
 }: {
   conversationId: string;
   initialMessages: SentMessage[];
+  conversationHistory: ConversationSummary[];
 }) {
   const router = useRouter();
   const [msgs, setMsgs] = React.useState(initialMessages);
   const [input, setInput] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const [switching, setSwitching] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [convId, setConvId] = React.useState(conversationId);
+  const [history, setHistory] = React.useState(conversationHistory);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const bottomRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -67,6 +86,49 @@ export function ChatView({
     }
     setConvId(res.data.conversationId);
     setMsgs([]);
+    setHistory((prev) => [
+      { id: res.data!.conversationId, preview: null, updatedAt: new Date().toISOString() },
+      ...prev,
+    ]);
+    router.refresh();
+  }
+
+  async function switchConversation(id: string) {
+    if (id === convId || switching) return;
+    setSwitching(true);
+    const res = await getConversationMessagesAction(id);
+    setSwitching(false);
+    if (!res.ok || !res.data) {
+      toast.error(res.error ?? 'Could not load that conversation.');
+      return;
+    }
+    setConvId(id);
+    setMsgs(res.data.messages);
+    setHistoryOpen(false);
+  }
+
+  async function deleteConversation(id: string) {
+    if (deletingId) return;
+    setDeletingId(id);
+    const res = await deleteConversationAction(id);
+    setDeletingId(null);
+    if (!res.ok) {
+      toast.error(res.error ?? 'Could not delete that conversation.');
+      return;
+    }
+
+    const remaining = history.filter((c) => c.id !== id);
+    setHistory(remaining);
+
+    if (id === convId) {
+      // The active conversation was just deleted — land on the next most
+      // recent one, or start fresh if that was the last conversation.
+      if (remaining.length > 0) {
+        await switchConversation(remaining[0]!.id);
+      } else {
+        await newConversation();
+      }
+    }
     router.refresh();
   }
 
@@ -74,7 +136,47 @@ export function ChatView({
 
   return (
     <div className="flex h-[calc(100dvh-14rem)] min-h-[28rem] flex-col">
-      <div className="flex items-center justify-end pb-3">
+      <div className="flex items-center justify-end gap-2 pb-3">
+        <DropdownMenu open={historyOpen} onOpenChange={setHistoryOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="ghost" disabled={history.length === 0}>
+              <History aria-hidden />
+              History{history.length > 0 ? ` (${history.length})` : ''}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-80 w-72 overflow-y-auto cp-scroll">
+            {history.map((c) => (
+              <div
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => void switchConversation(c.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') void switchConversation(c.id);
+                }}
+                className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink-2 outline-none transition-colors hover:bg-surface-2 hover:text-ink"
+              >
+                <div className="min-w-0 flex-1 cursor-pointer">
+                  <p className="truncate text-[13px]">{c.preview || 'New conversation'}</p>
+                  <p className="text-[11px] text-ink-4">{relativeTime(c.updatedAt)}</p>
+                </div>
+                {c.id === convId ? <Check className="size-3.5 shrink-0 text-accent" aria-hidden /> : null}
+                <button
+                  type="button"
+                  aria-label="Delete conversation"
+                  disabled={deletingId === c.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void deleteConversation(c.id);
+                  }}
+                  className="shrink-0 rounded-md p-1 text-ink-4 transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
+              </div>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="sm" variant="ghost" onClick={() => void newConversation()}>
           New conversation
         </Button>

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/auth';
 import { enforceRateLimit, RateLimitError } from '@/lib/rate-limit';
 import { NotFoundError } from '@/lib/db/tenant';
-import { createConversation, sendMessage } from '@/lib/assistant/service';
+import { createConversation, deleteConversation, listMessages, sendMessage } from '@/lib/assistant/service';
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -33,6 +33,47 @@ export async function startConversationAction(): Promise<ActionResult<{ conversa
     const conversationId = await createConversation(user.id);
     revalidatePath('/assistant');
     return { ok: true, data: { conversationId } };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+/** Switch the chat view to a past conversation the user owns. */
+export async function getConversationMessagesAction(
+  conversationId: string,
+): Promise<ActionResult<{ messages: SentMessage[] }>> {
+  try {
+    const user = await requireUser();
+    const parsed = z.string().uuid().safeParse(conversationId);
+    if (!parsed.success) return { ok: false, error: 'That conversation could not be found.' };
+
+    const found = await listMessages(user.id, parsed.data);
+    return {
+      ok: true,
+      data: {
+        messages: found.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          toolName: m.toolName,
+          toolResult: m.toolResult,
+        })),
+      },
+    };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+export async function deleteConversationAction(conversationId: string): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    const parsed = z.string().uuid().safeParse(conversationId);
+    if (!parsed.success) return { ok: false, error: 'That conversation could not be found.' };
+
+    await deleteConversation(user.id, parsed.data);
+    revalidatePath('/assistant');
+    return { ok: true, notice: 'Conversation deleted.' };
   } catch (err) {
     return toResult(err);
   }

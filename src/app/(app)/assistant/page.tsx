@@ -4,7 +4,7 @@ import { ChatView } from '@/components/assistant/chat-view';
 import { requireUserPage } from '@/lib/auth';
 import { isDatabaseConfigured } from '@/lib/db';
 import { aiAvailability } from '@/lib/ai/client';
-import { createConversation, listConversations, listMessages } from '@/lib/assistant/service';
+import { createConversation, listConversationsWithPreview, listMessages } from '@/lib/assistant/service';
 import { Alert } from '@/components/ui/alert';
 
 export const metadata: Metadata = { title: 'Assistant' };
@@ -27,10 +27,16 @@ export default async function AssistantPage() {
 
   let conversationId: string | null = null;
   let initialMessages: Awaited<ReturnType<typeof listMessages>> = [];
+  let conversationHistory: { id: string; preview: string | null; updatedAt: string }[] = [];
   if (ai.available) {
-    const existing = await listConversations(user.id);
+    const existing = await listConversationsWithPreview(user.id);
     conversationId = existing[0]?.id ?? (await createConversation(user.id));
     initialMessages = await listMessages(user.id, conversationId);
+    conversationHistory = existing.map((c) => ({
+      id: c.id,
+      preview: c.preview,
+      updatedAt: c.updatedAt.toISOString(),
+    }));
   }
 
   return (
@@ -54,6 +60,7 @@ export default async function AssistantPage() {
             toolName: m.toolName,
             toolResult: m.toolResult,
           }))}
+          conversationHistory={conversationHistory}
         />
       )}
     </PageShell>
