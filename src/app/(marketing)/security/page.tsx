@@ -154,7 +154,7 @@ export default function SecurityPage() {
           heading: 'File uploads',
           body: (
             <ul>
-              <li>PDF and DOCX only, 10 MB maximum.</li>
+              <li>PDF and DOCX only, 1 MB maximum.</li>
               <li>
                 Validated by extension <em>and</em> magic bytes, so a renamed binary cannot reach a parser.
               </li>

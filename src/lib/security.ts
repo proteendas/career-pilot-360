@@ -313,7 +313,7 @@ function safeCodePoint(cp: number): string {
 
 /* --------------------------------------------------------------- uploads -- */
 
-export const RESUME_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+export const RESUME_MAX_BYTES = 1 * 1024 * 1024; // 1 MB — keeps storage usage well inside free-tier quotas
 
 export type UploadKind = 'pdf' | 'docx';
 
@@ -345,7 +345,7 @@ export function validateUpload(
 
   if (bytes.byteLength === 0) throw new SecurityError('upload_empty', 'That file is empty.');
   if (bytes.byteLength > RESUME_MAX_BYTES) {
-    throw new SecurityError('upload_too_large', 'Resume files must be 10 MB or smaller.');
+    throw new SecurityError('upload_too_large', 'Resume files must be 1 MB or smaller.');
   }
 
   const looksPdf = PDF_MAGIC.every((b, i) => bytes[i] === b);

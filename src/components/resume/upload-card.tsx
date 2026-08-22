@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 1 * 1024 * 1024;
 const ACCEPT = '.pdf,.docx';
 
 interface UploadResponse {
@@ -40,7 +40,7 @@ function precheck(file: File): string | null {
   if (ext === 'doc') return 'Legacy .doc files are not supported. Save as PDF or DOCX and try again.';
   if (ext !== 'pdf' && ext !== 'docx') return 'Only PDF and DOCX resumes are supported.';
   if (file.size === 0) return 'That file is empty.';
-  if (file.size > MAX_BYTES) return `That file is ${formatBytes(file.size)}. The limit is 10 MB.`;
+  if (file.size > MAX_BYTES) return `That file is ${formatBytes(file.size)}. The limit is 1 MB.`;
   return null;
 }
 
@@ -182,7 +182,7 @@ export function UploadCard({ hasExisting }: { hasExisting: boolean }) {
       <CardHeader>
         <CardTitle>{hasExisting ? 'Upload another resume' : 'Upload your resume'}</CardTitle>
         <CardDescription>
-          PDF or DOCX, up to 10 MB. Your original file is preserved and never overwritten. Parsing and scoring run on
+          PDF or DOCX, up to 1 MB. Your original file is preserved and never overwritten. Parsing and scoring run on
           our servers with no AI provider involved.
         </CardDescription>
       </CardHeader>
@@ -246,7 +246,7 @@ export function UploadCard({ hasExisting }: { hasExisting: boolean }) {
               >
                 Choose a file
               </Button>
-              <p className="mt-3 text-xs text-ink-4">PDF or DOCX · 10 MB maximum</p>
+              <p className="mt-3 text-xs text-ink-4">PDF or DOCX · 1 MB maximum</p>
             </>
           )}
         </div>

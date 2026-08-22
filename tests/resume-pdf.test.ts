@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { PDFDocument } from 'pdf-lib';
 import { generateResumePdf, RESUME_TEMPLATES, TEMPLATE_META, isResumeTemplate } from '@/lib/resume/pdf';
 import { normalizeResumeText } from '@/lib/resume/normalize';
 import { extractText } from '@/lib/resume/parse';
 import { emptyResume } from '@/lib/resume/types';
+import { optimizePdfBytes } from '@/lib/resume/optimize';
 import { STRONG_RESUME } from './fixtures/resumes';
 
 const resume = normalizeResumeText(STRONG_RESUME).resume;
@@ -191,5 +193,42 @@ describe('PDF text extraction — the ATS premise', () => {
     expect(text).toContain('->');
     expect(text).toMatch(/"significantly"/);
     expect(text).not.toContain('🚀');
+  });
+});
+
+describe('PDF storage optimization', () => {
+  it('shrinks a PDF saved without object streams, and the result stays valid and text-identical', async () => {
+    const { bytes } = await generateResumePdf(resume, { template: 'modern' });
+    const doc = await PDFDocument.load(bytes);
+    const unoptimized = await doc.save({ useObjectStreams: false });
+
+    const result = await optimizePdfBytes(unoptimized);
+
+    expect(result.optimized).toBe(true);
+    expect(result.finalSize).toBeLessThan(result.originalSize);
+
+    const reloaded = await PDFDocument.load(result.bytes);
+    expect(reloaded.getPageCount()).toBe(doc.getPageCount());
+
+    const { text: beforeText } = await extractText(unoptimized, 'pdf');
+    const { text: afterText } = await extractText(result.bytes, 'pdf');
+    expect(afterText).toBe(beforeText);
+  });
+
+  it('falls back to the original bytes, unmodified, when the input cannot be parsed as a PDF', async () => {
+    const garbage = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3, 4, 5]);
+    const result = await optimizePdfBytes(garbage);
+
+    expect(result.optimized).toBe(false);
+    expect(result.bytes).toBe(garbage);
+    expect(result.finalSize).toBe(garbage.byteLength);
+  });
+
+  it('never returns a result larger than the input', async () => {
+    // A PDF pdf-lib already saved with object streams has little left to gain;
+    // the function must not silently swap in a bigger "optimized" copy.
+    const { bytes } = await generateResumePdf(resume, { template: 'modern' });
+    const result = await optimizePdfBytes(bytes);
+    expect(result.finalSize).toBeLessThanOrEqual(result.originalSize);
   });
 });

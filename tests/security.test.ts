@@ -195,9 +195,9 @@ describe('validateUpload', () => {
 
   it('rejects empty and oversized files', () => {
     expect(() => validateUpload({ name: 'cv.pdf', type: '', size: 0 }, new Uint8Array())).toThrow(/empty/);
-    const big = new Uint8Array(11 * 1024 * 1024);
+    const big = new Uint8Array(2 * 1024 * 1024);
     big.set(pdfBytes);
-    expect(() => validateUpload({ name: 'cv.pdf', type: '', size: big.length }, big)).toThrow(/10 MB/);
+    expect(() => validateUpload({ name: 'cv.pdf', type: '', size: big.length }, big)).toThrow(/1 MB/);
   });
 });
 

@@ -15,7 +15,7 @@ export const maxDuration = 60;
  * Resume upload.
  *
  * A route handler rather than a server action because server actions cap
- * request bodies well below our 10 MB file limit, and multipart streaming is
+ * request bodies well below our file size limit, and multipart streaming is
  * the natural fit here.
  */
 export async function POST(request: Request) {
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     const contentLength = Number(request.headers.get('content-length') ?? '0');
     if (contentLength > RESUME_MAX_BYTES + 8192) {
-      return NextResponse.json({ ok: false, error: 'Resume files must be 10 MB or smaller.' }, { status: 413 });
+      return NextResponse.json({ ok: false, error: 'Resume files must be 1 MB or smaller.' }, { status: 413 });
     }
 
     const form = await request.formData();

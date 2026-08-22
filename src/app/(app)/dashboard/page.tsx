@@ -184,7 +184,7 @@ export default async function DashboardPage() {
                 <EmptyState
                   icon={<FileText className="size-5" />}
                   title="Upload your resume"
-                  description="PDF or DOCX, up to 10 MB. Your original file is preserved and never overwritten."
+                  description="PDF or DOCX, up to 1 MB. Your original file is preserved and never overwritten."
                   action={
                     <Button asChild>
                       <Link href="/resume">

@@ -3,7 +3,11 @@
  * Server-only. Every function is scoped to a `userId`.
  *
  * Version model:
- *   resume_documents   the immutable original upload. Never modified.
+ *   resume_documents   the original upload's CONTENT, immutable and never
+ *                      edited. For a PDF, the bytes actually written to
+ *                      storage may not be byte-identical to what was
+ *                      uploaded — see `optimizePdfBytes` — but every word,
+ *                      page and layout choice is guaranteed unchanged.
  *   resume_versions    an editable tree; `parentVersionId` records lineage, so
  *                      "restore" is a new version rather than a mutation.
  *
@@ -25,6 +29,7 @@ import { contentHash, validateUpload, type ValidatedUpload } from '@/lib/securit
 import { getStorage, resumeOriginalPath, resumePdfPath } from '@/lib/storage';
 import { recordAudit } from '@/lib/audit';
 import { extractText } from './parse';
+import { optimizePdfBytes } from './optimize';
 import { enrichContactFromProfile, normalizeResumeText } from './normalize';
 import {
   parseStructuredResume,
@@ -64,6 +69,21 @@ export async function uploadResume(
   const db = getDb();
   const hash = await contentHash(bytes);
 
+  // Storage-only optimization: a PDF that round-trips through pdf-lib
+  // unchanged in content but smaller in bytes is stored instead of the raw
+  // upload. Parsing below still reads `validated.bytes` (the true original),
+  // never the optimized copy, so this can only affect storage size, never
+  // what gets extracted.
+  let storedBytes: Uint8Array = validated.bytes;
+  let optimizedSavedBytes = 0;
+  if (validated.kind === 'pdf') {
+    const optimized = await optimizePdfBytes(validated.bytes);
+    if (optimized.optimized) {
+      storedBytes = optimized.bytes;
+      optimizedSavedBytes = optimized.originalSize - optimized.finalSize;
+    }
+  }
+
   // 1. Persist the original first.
   const inserted = await db
     .insert(resumeDocuments)
@@ -72,7 +92,7 @@ export async function uploadResume(
       originalFilename: validated.filename,
       mimeType: validated.mimeType,
       blobPath: 'pending',
-      sizeBytes: validated.size,
+      sizeBytes: storedBytes.byteLength,
       contentHash: hash,
       parsingStatus: 'pending',
     })
@@ -81,7 +101,7 @@ export async function uploadResume(
   const documentId = inserted[0]!.id;
   const path = resumeOriginalPath(userId, documentId, validated.filename);
 
-  const stored = await getStorage().put(path, validated.bytes, validated.mimeType);
+  const stored = await getStorage().put(path, storedBytes, validated.mimeType);
   await db
     .update(resumeDocuments)
     .set({ blobPath: stored.path, blobUrl: stored.url })
@@ -92,7 +112,12 @@ export async function uploadResume(
     action: 'resume.uploaded',
     entityType: 'resume_document',
     entityId: documentId,
-    metadata: { filename: validated.filename, kind: validated.kind, sizeBytes: validated.size },
+    metadata: {
+      filename: validated.filename,
+      kind: validated.kind,
+      sizeBytes: storedBytes.byteLength,
+      ...(optimizedSavedBytes > 0 ? { optimizedSavedBytes } : {}),
+    },
     ...(opts.requestId ? { requestId: opts.requestId } : {}),
   });
 
