@@ -28,22 +28,12 @@ import { requireUserPage } from '@/lib/auth';
 import { loadDashboard } from '@/lib/dashboard';
 import { loadProfile } from '@/lib/profile/service';
 import { profileCompleteness } from '@/lib/profile/types';
-import { STATUS_META, type ApplicationStatus } from '@/lib/applications/state';
+import { EVENT_TYPE_LABELS, STATUS_META, type ApplicationStatus } from '@/lib/applications/state';
 import { featureFlags } from '@/lib/env';
 import { databaseDriverId } from '@/lib/db';
 import { formatDate, relativeTime } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Dashboard' };
-
-const EVENT_LABELS: Record<string, string> = {
-  'application.approved': 'Packet approved',
-  'application.external_portal_opened': 'Opened the employer’s portal',
-  'application.marked_submitted': 'Marked as submitted',
-  'application.connector_submitted': 'Submitted via connector',
-  'application.status_changed': 'Status changed',
-  'application.withdrawn': 'Withdrawn',
-  'application.created': 'Application created',
-};
 
 export default async function DashboardPage() {
   const user = await requireUserPage('/dashboard');
@@ -276,7 +266,7 @@ export default async function DashboardPage() {
                           href={`/applications/${e.applicationId}`}
                           className="text-[13px] font-medium text-ink hover:text-accent"
                         >
-                          {EVENT_LABELS[e.eventType] ?? e.eventType}
+                          {EVENT_TYPE_LABELS[e.eventType] ?? e.eventType}
                         </Link>
                         <p className="text-xs text-ink-4">
                           {relativeTime(e.createdAt)}

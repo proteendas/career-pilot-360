@@ -152,6 +152,17 @@ export const STATUS_META: Record<ApplicationStatus, StatusMeta> = {
   },
 };
 
+/** Human labels for `application_events.eventType`, shared by the dashboard and history feed. */
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  'application.created': 'Application created',
+  'application.approved': 'Packet approved',
+  'application.external_portal_opened': 'Opened the employer’s portal',
+  'application.marked_submitted': 'Marked as submitted',
+  'application.connector_submitted': 'Submitted via connector',
+  'application.status_changed': 'Status changed',
+  'application.withdrawn': 'Withdrawn',
+};
+
 /** Statuses that represent live, in-flight work for the pipeline widget. */
 export const ACTIVE_PIPELINE_STATUSES: ApplicationStatus[] = [
   'ready_for_review',
